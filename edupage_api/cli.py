@@ -1256,10 +1256,521 @@ def fetch_dashboard_cache(edupage: Edupage) -> Dict[str, Any]:
     return cache
 
 
+def _hhmm_to_sec(hhmm: Optional[str]) -> Optional[int]:
+    """Prevedie reťazec HH:MM na sekundy od polnoci."""
+    if not hhmm or ":" not in str(hhmm):
+        return None
+    try:
+        parts = str(hhmm).strip().split(":")
+        return int(parts[0]) * 3600 + int(parts[1]) * 60
+    except Exception:
+        return None
+
+
+def _extract_periods_and_breaks(dbi: dict) -> Tuple[List[dict], List[dict], Dict[str, dict]]:
+    """Extrahuje zvonenia pre hodiny 1-8 a prestávky medzi nimi."""
+    default_periods = [
+        {"period": "1", "start": "07:55", "end": "08:40"},
+        {"period": "2", "start": "08:45", "end": "09:30"},
+        {"period": "3", "start": "09:40", "end": "10:25"},
+        {"period": "4", "start": "10:40", "end": "11:25"},
+        {"period": "5", "start": "11:30", "end": "12:15"},
+        {"period": "6", "start": "12:20", "end": "13:05"},
+        {"period": "7", "start": "13:35", "end": "14:20"},
+        {"period": "8", "start": "14:25", "end": "15:10"},
+    ]
+
+    raw_periods = dbi.get("periods") or []
+    raw_by_p: Dict[str, dict] = {}
+    for p in raw_periods:
+        p_id = str(p.get("short") or p.get("id") or "").strip()
+        if p_id.isdigit() and 1 <= int(p_id) <= 8 and p.get("starttime") and p.get("endtime"):
+            raw_by_p[p_id] = {
+                "period": p_id,
+                "start": p["starttime"],
+                "end": p["endtime"],
+            }
+
+    periods_schedule: List[dict] = []
+    period_by_num: Dict[str, dict] = {}
+    for dp in default_periods:
+        p_num = dp["period"]
+        src = raw_by_p.get(p_num, dp)
+        s_sec = _hhmm_to_sec(src["start"])
+        e_sec = _hhmm_to_sec(src["end"])
+        entry = {
+            "period": p_num,
+            "start": src["start"],
+            "end": src["end"],
+            "start_sec": s_sec,
+            "end_sec": e_sec,
+        }
+        periods_schedule.append(entry)
+        period_by_num[p_num] = entry
+
+    breaks_schedule: List[dict] = []
+    for idx in range(len(periods_schedule) - 1):
+        cur_p = periods_schedule[idx]
+        nxt_p = periods_schedule[idx + 1]
+        b_start_sec = cur_p["end_sec"]
+        b_end_sec = nxt_p["start_sec"]
+        dur_min = (b_end_sec - b_start_sec) // 60 if (b_start_sec is not None and b_end_sec is not None) else 0
+        if dur_min >= 25:
+            b_name = "Obedná prestávka"
+        elif dur_min >= 15:
+            b_name = "Veľká prestávka"
+        elif dur_min >= 10:
+            b_name = "Desiatová prestávka"
+        else:
+            b_name = "Malá prestávka"
+
+        breaks_schedule.append({
+            "id": f"{cur_p['period']}-{nxt_p['period']}",
+            "after_period": cur_p["period"],
+            "before_period": nxt_p["period"],
+            "between": f"{cur_p['period']}. ➔ {nxt_p['period']}. hodina",
+            "start": cur_p["end"],
+            "end": nxt_p["start"],
+            "start_sec": b_start_sec,
+            "end_sec": b_end_sec,
+            "duration_min": dur_min,
+            "name": b_name,
+        })
+
+    return periods_schedule, breaks_schedule, period_by_num
+
+
+def _format_teacher_info(teacher_row: Optional[dict]) -> Tuple[str, str, str]:
+    """Vráti (celé meno, skrátené meno 'M. Priezvisko', kód učiteľa)."""
+    if not teacher_row:
+        return "-", "-", ""
+    code = str(teacher_row.get("short") or "").strip()
+    fn = str(teacher_row.get("firstname") or "").strip()
+    ln = str(teacher_row.get("lastname") or "").strip()
+    if fn or ln:
+        full = f"{fn} {ln}".strip()
+        short_name = f"{fn[0]}. {ln}".strip() if fn else ln
+        return full, short_name, code
+
+    raw_name = str(teacher_row.get("name") or "").strip()
+    if "," in raw_name:
+        parts = raw_name.split(",", 1)
+        ln = parts[0].strip()
+        fn = parts[1].strip()
+        full = f"{fn} {ln}".strip()
+        short_name = f"{fn[0]}. {ln}".strip() if fn else ln
+        return full, short_name, code
+    if raw_name:
+        return raw_name, raw_name, code
+    return "-", "-", code
+
+
+def _format_room_info(room_row: Optional[dict], class_name: str) -> Tuple[str, str]:
+    """Vráti (celý názov učebne, stručný kód/číslo učebne)."""
+    if not room_row:
+        return "-", "-"
+    full = str(room_row.get("name") or "").strip() or "-"
+    r_short = str(room_row.get("short") or "").strip()
+    clean_cls = class_name.replace(".", "").upper()
+    if r_short and r_short.replace(".", "").upper() != clean_cls:
+        return full, r_short
+    m = re.match(r"^\((\d+)\)", full)
+    if m:
+        return full, m.group(1)
+    return full, (r_short or full)
+
+
+def _build_lesson_entry(
+    period_str: str,
+    start_str: str,
+    end_str: str,
+    subj_row: Optional[dict],
+    event_name: str,
+    class_ids: List[str],
+    group_names: List[str],
+    teacher_ids: List[str],
+    classroom_ids: List[str],
+    student_class_id: Optional[str],
+    subjects_map: dict,
+    teachers_map: dict,
+    classrooms_map: dict,
+    classes_map: dict,
+    is_cancelled: bool = False,
+    is_changed: bool = False,
+    is_event: bool = False,
+    status: str = "PLÁN",
+    topic: str = "-",
+) -> dict:
+    """Vytvorí jednotný slovník pre hodinu v aktuálnom aj stacionárnom rozvrhu."""
+    t_str = f"{start_str}-{end_str}" if (start_str and end_str) else "-"
+    start_s = _hhmm_to_sec(start_str)
+    end_s = _hhmm_to_sec(end_str)
+
+    if subj_row:
+        raw_s_name = str(subj_row.get("name") or "").strip() or "Predmet"
+        raw_s_short = str(subj_row.get("short") or "").strip() or raw_s_name[:4].upper()
+    elif is_event or event_name:
+        raw_s_name = event_name or "Školská udalosť"
+        raw_s_short = "UDAL"
+    else:
+        raw_s_name = "Voľná hodina"
+        raw_s_short = "VOĽN"
+
+    clean_groups = [str(g).strip() for g in (group_names or []) if str(g).strip()]
+    group_str = ", ".join(clean_groups)
+    subj_display = f"{raw_s_name} ({group_str})" if group_str else raw_s_name
+
+    # Class resolution (prefer student's own class if shared lesson)
+    cls_names = []
+    if student_class_id and str(student_class_id) in [str(c) for c in (class_ids or [])]:
+        c_row = classes_map.get(str(student_class_id))
+        if c_row and c_row.get("name"):
+            cls_names.append(str(c_row["name"]))
+    if not cls_names:
+        for cid in (class_ids or [])[:2]:
+            c_row = classes_map.get(str(cid))
+            if c_row and c_row.get("name"):
+                cls_names.append(str(c_row["name"]))
+    class_name = ", ".join(cls_names) if cls_names else "-"
+
+    # Teachers
+    tc_full_list, tc_short_list, tc_code_list = [], [], []
+    for tid in teacher_ids or []:
+        full_t, short_t, code_t = _format_teacher_info(teachers_map.get(str(tid)))
+        if full_t != "-":
+            tc_full_list.append(full_t)
+            tc_short_list.append(short_t)
+            if code_t:
+                tc_code_list.append(code_t)
+    teacher_full = ", ".join(tc_full_list) if tc_full_list else "-"
+    teacher_short = ", ".join(tc_short_list) if tc_short_list else "-"
+    teacher_code = "/".join(tc_code_list) if tc_code_list else ""
+
+    # Classrooms
+    rm_full_list, rm_short_list = [], []
+    for r_id in classroom_ids or []:
+        full_r, short_r = _format_room_info(classrooms_map.get(str(r_id)), class_name)
+        if full_r != "-":
+            rm_full_list.append(full_r)
+            rm_short_list.append(short_r)
+    room_full = ", ".join(rm_full_list) if rm_full_list else "-"
+    room_short = ", ".join(rm_short_list) if rm_short_list else "-"
+
+    return {
+        "period": period_str,
+        "time": t_str,
+        "start": start_str,
+        "end": end_str,
+        "start_sec": start_s,
+        "end_sec": end_s,
+        "subject_short": raw_s_short,
+        "subject": subj_display,
+        "class_name": class_name,
+        "group": group_str,
+        "room": room_full,
+        "room_short": room_short,
+        "teacher": teacher_full,
+        "teacher_short": teacher_short,
+        "teacher_code": teacher_code,
+        "status": status,
+        "is_cancelled": is_cancelled,
+        "is_changed": is_changed,
+        "is_event": is_event,
+        "topic": topic or "-",
+    }
+
+
+def _fetch_actual_week_timetable(
+    edupage: Edupage,
+    student_id: Optional[str],
+    student_class_id: Optional[str],
+    monday: date,
+    today: date,
+    period_by_num: Dict[str, dict],
+    dbi: dict,
+) -> dict:
+    """Načíta aktuálny rozvrh (vrátane zmien, suplovaní a odpadnutí) pre Po-Pi jedným dopytom."""
+    day_names_sk = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok"]
+    subjects_map = dbi.get("subjects", {})
+    teachers_map = dbi.get("teachers", {})
+    classrooms_map = dbi.get("classrooms", {})
+    classes_map = dbi.get("classes", {})
+
+    by_date: Dict[str, list] = {}
+    if student_id:
+        try:
+            year = edupage.data.get("dp", {}).get("year") or today.year
+            friday = monday + timedelta(days=4)
+            url = f"https://{edupage.subdomain}.edupage.org/timetable/server/currenttt.js?__func=curentttGetData"
+            payload = {
+                "__args": [
+                    None,
+                    {
+                        "year": year,
+                        "datefrom": monday.strftime("%Y-%m-%d"),
+                        "dateto": friday.strftime("%Y-%m-%d"),
+                        "table": "students",
+                        "id": str(student_id),
+                        "showColors": True,
+                        "showIgroupsInClasses": True,
+                        "showOrig": True,
+                        "log_module": "CurrentTTView",
+                    },
+                ],
+                "__gsh": edupage.gsec_hash,
+            }
+            resp = edupage.session.post(url, json=payload, timeout=15).json()
+            for it in resp.get("r", {}).get("ttitems", []) or []:
+                d_key = it.get("date")
+                if d_key:
+                    by_date.setdefault(d_key, []).append(it)
+        except Exception:
+            by_date = {}
+
+    week_days: dict = {}
+    for idx in range(5):
+        cur_d = monday + timedelta(days=idx)
+        d_str = cur_d.strftime("%Y-%m-%d")
+        raw_items = by_date.get(d_str, [])
+        slot_entries: Dict[str, List[dict]] = {}
+
+        for it in raw_items:
+            p_raw = str(it.get("uniperiod") or "").strip()
+            if not p_raw.isdigit():
+                continue
+            p_num = int(p_raw)
+            dur = max(1, int(it.get("durationperiods") or 1))
+            is_cancelled = bool(it.get("removed") or it.get("type") in ("absent", ""))
+            is_changed = bool(it.get("changed"))
+            is_event = bool(it.get("type") in ("event", "out") or it.get("main"))
+
+            subj_id = str(it.get("subjectid") or "").strip()
+            subj_row = subjects_map.get(subj_id) if subj_id else None
+            ev_name = ""
+            try:
+                ev_name = str(it.get("name") or (it.get("flags") or {}).get("event", {}).get("name") or "").strip()
+            except Exception:
+                ev_name = str(it.get("name") or "").strip()
+            if not subj_row and not ev_name and is_cancelled:
+                continue
+
+            try:
+                note_wd = (it.get("flags") or {}).get("dp0", {}).get("note_wd")
+            except Exception:
+                note_wd = None
+            topic_str = str(note_wd or ev_name or "-").strip() or "-"
+
+            if is_cancelled:
+                st_str = "ODPADLA"
+            elif is_event:
+                st_str = "UDALOSŤ"
+            elif is_changed:
+                st_str = "ZMENA"
+            else:
+                st_str = "PLÁN"
+
+            for offset in range(dur):
+                slot_p = p_num + offset
+                if slot_p < 1 or slot_p > 8:
+                    continue
+                slot_key = str(slot_p)
+                p_def = period_by_num.get(slot_key, {})
+                s_time = p_def.get("start") or str(it.get("starttime") or "")
+                e_time = p_def.get("end") or str(it.get("endtime") or "")
+                if dur == 1 and it.get("starttime") and it.get("endtime"):
+                    s_time = str(it.get("starttime"))
+                    e_time = str(it.get("endtime"))
+
+                entry = _build_lesson_entry(
+                    period_str=slot_key,
+                    start_str=s_time,
+                    end_str=e_time,
+                    subj_row=subj_row,
+                    event_name=ev_name,
+                    class_ids=it.get("classids") or [],
+                    group_names=it.get("groupnames") or [],
+                    teacher_ids=it.get("teacherids") or [],
+                    classroom_ids=it.get("classroomids") or [],
+                    student_class_id=student_class_id,
+                    subjects_map=subjects_map,
+                    teachers_map=teachers_map,
+                    classrooms_map=classrooms_map,
+                    classes_map=classes_map,
+                    is_cancelled=is_cancelled,
+                    is_changed=is_changed,
+                    is_event=is_event,
+                    status=st_str,
+                    topic=topic_str,
+                )
+                slot_entries.setdefault(slot_key, []).append(entry)
+
+        day_lessons: List[dict] = []
+        for slot_key in sorted(slot_entries.keys(), key=lambda x: int(x)):
+            candidates = slot_entries[slot_key]
+            # Prefer non-cancelled entries (e.g. replacement lesson or event) over removed placeholders
+            active = [c for c in candidates if not c["is_cancelled"]]
+            chosen = active[0] if active else candidates[0]
+            day_lessons.append(chosen)
+
+        week_days[d_str] = {
+            "day_name": day_names_sk[idx],
+            "date": d_str,
+            "is_today": (cur_d == today),
+            "lessons": day_lessons,
+        }
+
+    return week_days
+
+
+def _build_regular_week_timetable(
+    edupage: Edupage,
+    student_id: Optional[str],
+    student_class_id: Optional[str],
+    monday: date,
+    today: date,
+    period_by_num: Dict[str, dict],
+    fallback_week: dict,
+) -> dict:
+    """Načíta stacionárny (stály) rozvrh z regularttGetData bez dočasných zmien a odpadnutí."""
+    day_names_sk = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok"]
+    try:
+        year = edupage.data.get("dp", {}).get("year") or today.year
+        tt_num = "130"
+        try:
+            url_viewer = f"https://{edupage.subdomain}.edupage.org/timetable/server/ttviewer.js?__func=getTTViewerData"
+            v_resp = edupage.session.post(url_viewer, json={"__args": [None, year], "__gsh": edupage.gsec_hash}, timeout=10).json()
+            reg_num = v_resp.get("r", {}).get("regular", {}).get("default_num")
+            if reg_num:
+                tt_num = str(reg_num)
+        except Exception:
+            pass
+
+        url_reg = f"https://{edupage.subdomain}.edupage.org/timetable/server/regulartt.js?__func=regularttGetData"
+        r_resp = edupage.session.post(url_reg, json={"__args": [None, tt_num], "__gsh": edupage.gsec_hash}, timeout=15).json()
+        dbi_res = r_resp.get("r", {}).get("dbiAccessorRes", {})
+        tables = {t["id"]: t.get("data_rows", []) for t in dbi_res.get("tables", [])}
+
+        subjects_map = {str(r["id"]): r for r in tables.get("subjects", [])}
+        teachers_map = {str(r["id"]): r for r in tables.get("teachers", [])}
+        classrooms_map = {str(r["id"]): r for r in tables.get("classrooms", [])}
+        classes_map = {str(r["id"]): r for r in tables.get("classes", [])}
+        groups_map = {str(r["id"]): r for r in tables.get("groups", [])}
+
+        my_lessons = {
+            str(r["id"]): r
+            for r in tables.get("lessons", [])
+            if student_id and str(student_id) in [str(sid) for sid in (r.get("studentids") or [])]
+        }
+
+        if not my_lessons:
+            raise ValueError("No regular lessons found for student")
+
+        regular_days: dict = {}
+        for d_idx in range(5):
+            cur_d = monday + timedelta(days=d_idx)
+            d_str = cur_d.strftime("%Y-%m-%d")
+            slot_entries: Dict[str, dict] = {}
+
+            for card in tables.get("cards", []):
+                lid = str(card.get("lessonid") or "")
+                days_mask = str(card.get("days") or "")
+                if lid not in my_lessons or len(days_mask) <= d_idx or days_mask[d_idx] != "1":
+                    continue
+
+                p_raw = str(card.get("period") or "").strip()
+                if not p_raw.isdigit():
+                    continue
+                p_num = int(p_raw)
+                les = my_lessons[lid]
+                subj_row = subjects_map.get(str(les.get("subjectid") or ""))
+
+                grp_names = []
+                for gid in les.get("groupids") or []:
+                    g_row = groups_map.get(str(gid))
+                    if g_row and not g_row.get("entireclass") and g_row.get("name"):
+                        grp_names.append(str(g_row["name"]))
+
+                # Cards in regulartt are typically 1 per period slot, or multi-period; support both safely
+                dur = 1
+                if int(les.get("durationperiods") or 1) > 1:
+                    # Only expand if there isn't already another card for this same lesson on p_num + 1
+                    has_next_card = any(
+                        str(c2.get("lessonid") or "") == lid
+                        and len(str(c2.get("days") or "")) > d_idx
+                        and str(c2.get("days"))[d_idx] == "1"
+                        and str(c2.get("period") or "") == str(p_num + 1)
+                        for c2 in tables.get("cards", [])
+                    )
+                    if not has_next_card:
+                        dur = int(les.get("durationperiods") or 1)
+
+                for offset in range(dur):
+                    slot_p = p_num + offset
+                    if slot_p < 1 or slot_p > 8:
+                        continue
+                    slot_key = str(slot_p)
+                    if slot_key in slot_entries:
+                        continue
+                    p_def = period_by_num.get(slot_key, {})
+                    slot_entries[slot_key] = _build_lesson_entry(
+                        period_str=slot_key,
+                        start_str=p_def.get("start", ""),
+                        end_str=p_def.get("end", ""),
+                        subj_row=subj_row,
+                        event_name="",
+                        class_ids=les.get("classids") or [],
+                        group_names=grp_names,
+                        teacher_ids=les.get("teacherids") or [],
+                        classroom_ids=card.get("classroomids") or [],
+                        student_class_id=student_class_id,
+                        subjects_map=subjects_map,
+                        teachers_map=teachers_map,
+                        classrooms_map=classrooms_map,
+                        classes_map=classes_map,
+                        is_cancelled=False,
+                        is_changed=False,
+                        is_event=False,
+                        status="STÁLY",
+                        topic="-",
+                    )
+
+            day_lessons = [slot_entries[k] for k in sorted(slot_entries.keys(), key=lambda x: int(x))]
+            regular_days[d_str] = {
+                "day_name": day_names_sk[d_idx],
+                "date": d_str,
+                "is_today": (cur_d == today),
+                "lessons": day_lessons,
+            }
+
+        return regular_days
+    except Exception:
+        # Fallback built from actual week timetable without temporary events/cancellations
+        reg_fallback: dict = {}
+        for d_str, d_info in fallback_week.items():
+            clean_lessons = []
+            for l in d_info.get("lessons", []):
+                if l.get("is_event"):
+                    continue
+                copy_l = dict(l)
+                copy_l["is_cancelled"] = False
+                copy_l["is_changed"] = False
+                copy_l["status"] = "STÁLY"
+                clean_lessons.append(copy_l)
+            reg_fallback[d_str] = {
+                "day_name": d_info.get("day_name", ""),
+                "date": d_str,
+                "is_today": d_info.get("is_today", False),
+                "lessons": clean_lessons,
+            }
+        return reg_fallback
+
+
 def export_dashboard_json(edupage: Edupage) -> dict:
     """Vráti kompletné agregované JSON dáta pre Node.js TUI dashboard s grafmi."""
     now = datetime.now()
     now_time = now.time()
+    dbi = edupage.data.get("dbi", {}) if hasattr(edupage, "data") and edupage.data else {}
+    periods_schedule, breaks_schedule, period_by_num = _extract_periods_and_breaks(dbi)
 
     data: Dict[str, Any] = {
         "user": get_display_user_name(edupage),
@@ -1277,6 +1788,10 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "distribution": {"titles": ["1", "2", "3", "4", "5"], "data": [0, 0, 0, 0, 0]},
         "subjects": [],
         "timetable": [],
+        "periods_schedule": periods_schedule,
+        "breaks_schedule": breaks_schedule,
+        "week_timetable": {},
+        "regular_week_timetable": {},
         "lunches": None,
         "tasks": [],
         "all_grades": [],
@@ -1290,13 +1805,40 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
-    # 2. Timetable (Student-Specific with Real Cancellations & Full Week Support)
+    # 2. Timetable (Monitor today's list + Full Week Actual + Full Week Stationary)
     try:
         user_id = edupage.get_user_id()
         student_id = user_id.replace("Student", "") if (user_id and user_id.startswith("Student")) else None
         student_obj = People(edupage).get_student(student_id) if student_id else None
+        student_class_id = None
+        if student_id and str(student_id) in (dbi.get("students") or {}):
+            student_class_id = str(dbi["students"][str(student_id)].get("classid") or "")
 
         today = date.today()
+        monday = today - timedelta(days=today.weekday())
+
+        week_days = _fetch_actual_week_timetable(
+            edupage=edupage,
+            student_id=student_id,
+            student_class_id=student_class_id,
+            monday=monday,
+            today=today,
+            period_by_num=period_by_num,
+            dbi=dbi,
+        )
+        data["week_timetable"] = week_days
+
+        data["regular_week_timetable"] = _build_regular_week_timetable(
+            edupage=edupage,
+            student_id=student_id,
+            student_class_id=student_class_id,
+            monday=monday,
+            today=today,
+            period_by_num=period_by_num,
+            fallback_week=week_days,
+        )
+
+        # Build today's timetable for Monitor tab (with free period 1 indicator if applicable)
         tt = edupage.get_timetable(student_obj, today) if student_obj else edupage.get_my_timetable(today)
         if tt and tt.lessons:
             sorted_lessons = sorted(
@@ -1304,17 +1846,17 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                 key=lambda l: (l.period if l.period is not None else 99, l.start_time or time.min),
             )
 
-            # Insert Period 1 free period if class starts at Period 2 or later
             valid_active = [l for l in sorted_lessons if (l.subject is not None or l.is_event) and not l.is_cancelled]
             if valid_active and valid_active[0].period is not None and valid_active[0].period > 1:
                 first_p = valid_active[0].period
+                p1 = period_by_num.get("1", {"start": "07:55", "end": "08:40", "start_sec": 28500, "end_sec": 31200})
                 data["timetable"].append({
                     "period": "1",
-                    "time": "07:55-08:40",
-                    "start": "07:55",
-                    "end": "08:40",
-                    "start_sec": 7 * 3600 + 55 * 60,
-                    "end_sec": 8 * 3600 + 40 * 60,
+                    "time": f"{p1['start']}-{p1['end']}",
+                    "start": p1["start"],
+                    "end": p1["end"],
+                    "start_sec": p1["start_sec"],
+                    "end_sec": p1["end_sec"],
                     "subject": "Voľná hodina",
                     "room": "-",
                     "teacher": "-",
@@ -1372,48 +1914,6 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                     "status": status_str,
                     "topic": topic_str,
                 })
-
-        # Fetch week schedule (Monday - Friday) for Tab 3 navigation
-        monday = today - timedelta(days=today.weekday())
-        week_days = {}
-        day_names_sk = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok"]
-        for i in range(5):
-            cur_d = monday + timedelta(days=i)
-            d_str = cur_d.strftime("%Y-%m-%d")
-            cur_tt = edupage.get_timetable(student_obj, cur_d) if student_obj else edupage.get_my_timetable(cur_d)
-            day_lessons = []
-            if cur_tt and cur_tt.lessons:
-                sorted_cur = sorted(
-                    cur_tt.lessons,
-                    key=lambda l: (l.period if l.period is not None else 99, l.start_time or time.min),
-                )
-                for l in sorted_cur:
-                    if l.subject is None and (l.is_cancelled or not l.start_time):
-                        continue
-                    p_s = str(l.period) if l.period is not None else "-"
-                    t_s = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
-                    s_n = l.subject.name if l.subject else (l.curriculum if l.is_event else "Voľná hodina")
-                    if l.groups:
-                        s_n = f"{s_n} ({', '.join(l.groups)})"
-                    r_s = ", ".join(c.name for c in l.classrooms) if l.classrooms else "-"
-                    tc_s = ", ".join(t.name for t in l.teachers) if l.teachers else "-"
-                    st_s = "ODPADLA" if l.is_cancelled else "PLÁN"
-                    day_lessons.append({
-                        "period": p_s,
-                        "time": t_s,
-                        "subject": s_n,
-                        "room": r_s,
-                        "teacher": tc_s,
-                        "status": st_s,
-                        "topic": l.curriculum or "-",
-                    })
-            week_days[d_str] = {
-                "day_name": day_names_sk[i],
-                "date": d_str,
-                "is_today": (cur_d == today),
-                "lessons": day_lessons,
-            }
-        data["week_timetable"] = week_days
     except Exception:
         pass
 
