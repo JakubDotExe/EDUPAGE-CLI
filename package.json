@@ -1,0 +1,13 @@
+{
+  "name": "edupage-btop",
+  "version": "1.0.0",
+  "description": "Modern btop-style EduPage TUI monitor with live Braille graphs and responsive grid",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.1"
+  }
+}

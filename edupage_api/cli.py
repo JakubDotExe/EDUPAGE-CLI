@@ -1205,6 +1205,206 @@ def fetch_dashboard_cache(edupage: Edupage) -> Dict[str, Any]:
     return cache
 
 
+def export_dashboard_json(edupage: Edupage) -> dict:
+    """Vráti kompletné agregované JSON dáta pre Node.js TUI dashboard s grafmi."""
+    now = datetime.now()
+    now_time = now.time()
+
+    data: Dict[str, Any] = {
+        "user": get_display_user_name(edupage),
+        "username": edupage.username,
+        "subdomain": edupage.subdomain or "ssnd",
+        "school": f"{edupage.subdomain or 'ssnd'}.edupage.org",
+        "date": now.strftime("%Y-%m-%d (%a)").upper(),
+        "time": now.strftime("%H:%M:%S"),
+        "next_bell": "-",
+        "lesson_progress": 0,
+        "gpa": "-",
+        "total_marks": 0,
+        "trend": {"x": [], "y": []},
+        "distribution": {"titles": ["1", "2", "3", "4", "5"], "data": [0, 0, 0, 0, 0]},
+        "subjects": [],
+        "timetable": [],
+        "lunches": None,
+        "tasks": [],
+        "all_grades": [],
+    }
+
+    # 1. Ringing
+    try:
+        ringing = edupage.get_next_ringing_time(now)
+        r_type = "BREAK" if ringing.type == RingingType.BREAK else "LESSON"
+        data["next_bell"] = f"{ringing.time.strftime('%H:%M')} [{r_type}]"
+    except Exception:
+        pass
+
+    # 2. Timetable
+    try:
+        tt = edupage.get_my_timetable(date.today())
+        if tt and tt.lessons:
+            sorted_lessons = sorted(
+                tt.lessons,
+                key=lambda l: (l.period if l.period is not None else 99, l.start_time or time.min),
+            )
+            next_found = False
+            for l in sorted_lessons:
+                p_str = str(l.period) if l.period is not None else "-"
+                t_str = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
+                s_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Free period")
+                r_str = ", ".join(c.name for c in l.classrooms) if l.classrooms else "-"
+                tc_str = ", ".join(t.name for t in l.teachers) if l.teachers else "-"
+                topic_str = l.curriculum or "-"
+
+                status_str = "OK"
+                if l.is_cancelled:
+                    status_str = "CANCELLED"
+                elif l.is_event:
+                    status_str = "EVENT"
+                elif l.start_time and l.end_time:
+                    if l.start_time <= now_time <= l.end_time:
+                        status_str = "CURRENT"
+                        total_secs = (datetime.combine(date.today(), l.end_time) - datetime.combine(date.today(), l.start_time)).total_seconds()
+                        elapsed_secs = (datetime.combine(date.today(), now_time) - datetime.combine(date.today(), l.start_time)).total_seconds()
+                        if total_secs > 0:
+                            data["lesson_progress"] = max(0, min(100, int(elapsed_secs / total_secs * 100)))
+                    elif now_time < l.start_time and not next_found:
+                        status_str = "NEXT"
+                        next_found = True
+
+                data["timetable"].append({
+                    "period": p_str,
+                    "time": t_str,
+                    "subject": s_name,
+                    "room": r_str,
+                    "teacher": tc_str,
+                    "status": status_str,
+                    "topic": topic_str,
+                })
+    except Exception:
+        pass
+
+    # 3. Grades & Analytics
+    try:
+        grades = edupage.get_grades()
+        data["total_marks"] = len(grades)
+        stats = calculate_subject_stats(grades)
+        if stats["avg_grade"] is not None:
+            data["gpa"] = f"{stats['avg_grade']:.2f}"
+
+        dist = [0, 0, 0, 0, 0]
+        chronological_grades = sorted([g for g in grades if g.date], key=lambda g: g.date)
+
+        cum_weighted_sum = 0.0
+        cum_weight_total = 0.0
+        trend_x = []
+        trend_y = []
+
+        for g in chronological_grades:
+            val_str = str(g.grade_n).strip()
+            num = None
+            if val_str.isdigit():
+                num = int(val_str)
+            elif val_str.endswith("-") and val_str[:-1].isdigit():
+                num = float(val_str[:-1]) + 0.5
+            elif val_str.endswith("+") and val_str[:-1].isdigit():
+                num = float(val_str[:-1]) - 0.25
+
+            if num is not None and 1 <= round(num) <= 5:
+                dist[round(num) - 1] += 1
+                w = g.importance if (g.importance and g.importance > 0) else 1.0
+                cum_weighted_sum += num * w
+                cum_weight_total += w
+                curr_gpa = round(cum_weighted_sum / cum_weight_total, 2)
+                trend_x.append(g.date.strftime("%d.%m"))
+                trend_y.append(curr_gpa)
+
+        data["distribution"]["data"] = dist
+
+        if len(trend_x) > 12:
+            step = len(trend_x) / 12
+            sampled_indices = [int(i * step) for i in range(12)]
+            trend_x = [trend_x[i] for i in sampled_indices]
+            trend_y = [trend_y[i] for i in sampled_indices]
+        data["trend"]["x"] = trend_x
+        data["trend"]["y"] = trend_y
+
+        by_subj: Dict[str, list] = {}
+        for g in grades:
+            by_subj.setdefault(g.subject_name or "Unknown", []).append(g)
+
+        for s_name, glist in sorted(by_subj.items(), key=lambda x: x[0]):
+            s_stat = calculate_subject_stats(glist)
+            data["subjects"].append({
+                "name": s_name,
+                "count": len(glist),
+                "avg": f"{s_stat['avg_grade']:.2f}" if s_stat["avg_grade"] is not None else "-",
+            })
+
+        for g in sorted(grades, key=lambda g: g.date if g.date else datetime.min, reverse=True):
+            data["all_grades"].append({
+                "date": g.date.strftime("%Y-%m-%d") if g.date else "-",
+                "subject": g.subject_name or "Unknown",
+                "grade": format_grade_value(g),
+                "weight": format_weight(g),
+                "title": g.title or "-",
+                "comment": format_comment_and_teacher(g),
+            })
+    except Exception:
+        pass
+
+    # 4. Meals / Lunches
+    try:
+        meals = edupage.get_meals(date.today())
+        if meals and meals.lunch:
+            l = meals.lunch
+            menus_list = []
+            if l.menus:
+                for m in l.menus:
+                    menus_list.append({
+                        "number": m.number,
+                        "name": m.name,
+                        "allergens": m.allergens or "",
+                        "weight": m.weight or "",
+                        "selected": (l.ordered_meal == m.number),
+                    })
+            data["lunches"] = {
+                "title": l.title,
+                "ordered_meal": l.ordered_meal,
+                "status": f"ORDERED: {l.ordered_meal}" if l.ordered_meal else "NOT ORDERED",
+                "serving": f"{l.served_from.strftime('%H:%M')} - {l.served_to.strftime('%H:%M')}" if (l.served_from and l.served_to) else "-",
+                "menus": menus_list,
+            }
+    except Exception:
+        pass
+
+    # 5. Homework & tasks
+    try:
+        events = edupage.get_notifications()
+        hw_types = {
+            EventType.HOMEWORK,
+            EventType.BIG_EXAM,
+            EventType.SHORT_EXAM,
+            EventType.ORAL_EXAM,
+            EventType.TESTING,
+            EventType.PAPER,
+        }
+        for e in events:
+            if e.event_type in hw_types and not e.is_done:
+                d_str = e.event_time.strftime("%Y-%m-%d") if e.event_time else (e.timestamp.strftime("%Y-%m-%d") if e.timestamp else "-")
+                auth = e.author.name if hasattr(e.author, "name") and isinstance(e.author.name, str) else str(e.author or "Teacher")
+                t_label = (e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type)).upper()
+                data["tasks"].append({
+                    "date": d_str,
+                    "type": t_label,
+                    "author": auth,
+                    "text": (e.text or "").replace("\n", " ").strip(),
+                })
+    except Exception:
+        pass
+
+    return data
+
+
 def interactive_dashboard(edupage: Edupage, use_color: bool = True) -> None:
     """Hlavná navigačná slučka interaktívneho btop-style dashboardu."""
     print(colorize("[...] Loading live EduPage data for home monitor...", COLOR_DIM, use_color))
@@ -1415,6 +1615,9 @@ def main():
     # Command: logout
     subparsers.add_parser("logout", help="Clear saved credentials.")
 
+    # Command: dump-json
+    subparsers.add_parser("dump-json", help="Export aggregated data as JSON.")
+
     args = parser.parse_args()
 
     use_color = (not args.no_color and not os.getenv("NO_COLOR") and sys.stdout.isatty())
@@ -1440,7 +1643,11 @@ def main():
         sys.exit(1)
 
     try:
-        if args.command == "grades":
+        if args.command == "dump-json":
+            json_data = export_dashboard_json(edupage)
+            print(json.dumps(json_data, ensure_ascii=False))
+            sys.exit(0)
+        elif args.command == "grades":
             view_grades(edupage, use_color=use_color, subject_filter=args.subject)
         elif args.command == "timetable":
             t_date = date.today()

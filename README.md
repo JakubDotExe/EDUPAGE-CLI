@@ -4,22 +4,25 @@ This Python library allows easy access to EduPage. It's not a Selenium web scrap
 
 # EduPage CLI
 
-Moderný minimalistický terminálový monitor a klient pre EduPage v štýle btop:
+Moderný terminálový TUI monitor a klient pre EduPage v skutočnom štýle **btop** (grafy, Braille krivky, stĺpcové grafy, progress gauge a responzívny 12x12 grid).
 
 ```bash
-# Spustenie interaktívneho monitora
-python cli.py
+# Spustenie moderného btop monitora (Node.js)
+npm start
+# alebo
+node app.js
 # alebo vo Windows dvojklik na run.bat
 ```
 
 ### Hlavné vlastnosti:
+- **Živé grafy v štýle btop**: Braille krivka vývoja študijného priemeru (GPA History Line Graph) a stĺpcový graf distribúcie známok (1 až 5).
+- **Živý progress bar hodiny**: Gauge ukazujúci presný priebeh a minúty aktuálnej hodiny.
 - **Domovská obrazovka (Home Dashboard)**: Živý monitor s hodinami, časom posledného refreshu, dnešným rozvrhom (s indikáciou aktuálnej a nasledujúcej hodiny), poslednými známkami, dnešným obedom v jedálni a aktívnymi domácimi úlohami.
-- **Celoobrazovkový prehľad známok**: Karty predmetov so študijným priemerom (GPA), váženými priemermi, percentami a podrobnými tabuľkami hodnotení.
-- **Rozvrh hodín**: Prehľad na dnes, zajtrajšok, celý týždeň alebo ľubovoľný dátum s vyznačením odpadnutých a online hodín.
-- **Suplovanie**: Okamžitý prehľad o chýbajúcich učiteľoch a zastupovaniach.
+- **Celoobrazovkový prehľad známok (`[1]`)**: Karty predmetov so študijným priemerom (GPA), váženými priemermi, percentami a podrobnými tabuľkami hodnotení.
+- **Rozvrh hodín**: Prehľad na dnes, zajtrajšok, celý týždeň alebo ľubovoľný dátum s vyznačením odpadnutých hodín.
 - **Jedáleň a obedy**: Stav objednávky (Menu A/B, odhlásené), časy výdaja, alergény.
 - **Automatické zapamätanie údajov**: Automaticky si pamätá prihlasovacie meno a subdoménu `ssnd`.
-- **Rýchla klávesová navigácia**: Príkazový riadok v spodnej časti (`edupage:~$`) pre prepínanie pohľadov.
+- **Rýchla klávesová navigácia**: Klávesy `1`, `g` (známky), `r` (refresh), `q` (ukončenie).
 
 ### Rýchle príkazy (neinteraktívny režim):
 ```bash
