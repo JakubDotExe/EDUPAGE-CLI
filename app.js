@@ -20,10 +20,54 @@ drawille.colors = {
 
 const blessed = require('blessed');
 const contrib = require('blessed-contrib');
+const stripAnsi = require('strip-ansi');
 const { spawn } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+
+// Patch blessed-contrib Table formatting: prevents column collision, guarantees
+// clean spacing between columns, and cleanly truncates long text with ellipses.
+contrib.table.prototype.setData = function(table) {
+  const self = this;
+  const spacing = typeof self.options.columnSpacing === 'number' ? self.options.columnSpacing : 2;
+
+  const dataToString = function(d) {
+    let str = '';
+    d.forEach(function(r, i) {
+      const colsize = (self.options.columnWidth && self.options.columnWidth[i]) || 20;
+      let raw = (r == null ? '' : r).toString();
+      let strip = stripAnsi(raw);
+
+      if (strip.length > colsize) {
+        const visiblePart = colsize > 3 ? strip.slice(0, colsize - 1) + '…' : strip.slice(0, colsize);
+        raw = visiblePart;
+        strip = visiblePart;
+      }
+
+      const padNeeded = Math.max(0, colsize - strip.length);
+      const pad = ' '.repeat(padNeeded);
+      const gap = (i < d.length - 1) ? ' '.repeat(spacing) : '';
+
+      str += raw + pad + gap;
+    });
+    return str;
+  };
+
+  const formatted = [];
+  (table.data || []).forEach(function(d) {
+    formatted.push(dataToString(d));
+  });
+  this.setContent(dataToString(table.headers || []));
+  this.rows.setItems(formatted);
+};
+
+// Request terminal maximize on startup if supported
+if (process.platform === 'win32') {
+  try {
+    process.stdout.write('\x1b[9;1t');
+  } catch (e) {}
+}
 
 // ==============================================================================
 // Screen Initialization
@@ -207,7 +251,7 @@ const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   label: ' [ AKTUÁLNE ZADANIA A PÍSOMKY ] ',
   border: { type: 'line', fg: 'cyan' },
   columnSpacing: 2,
-  columnWidth: [12, 10, 16, 26],
+  columnWidth: [11, 10, 18, 30],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
   fg: 'white',
   selectedFg: 'black',
@@ -240,7 +284,7 @@ const subjectsTable = gradesGrid.set(0, 0, 12, 4, contrib.table, {
   label: ' [ PREDMETY ] ',
   border: { type: 'line', fg: 'yellow' },
   columnSpacing: 2,
-  columnWidth: [9, 9, 9, 7],
+  columnWidth: [10, 9, 9, 7],
   headers: ['PREDMET', 'PRIEMER', 'ÚSPECH', 'POČET'],
   fg: 'white',
   selectedFg: 'black',
@@ -258,7 +302,7 @@ const fullGradesTable = gradesGrid.set(0, 4, 12, 8, contrib.table, {
   label: ' [ VŠETKY ZAPÍSANÉ ZNÁMKY ] ',
   border: { type: 'line', fg: 'green' },
   columnSpacing: 2,
-  columnWidth: [11, 8, 14, 6, 26, 20],
+  columnWidth: [11, 9, 8, 6, 34, 26],
   headers: ['DÁTUM', 'PREDMET', 'ZNÁMKA', 'VÁHA', 'ZADANIE / UDALOSŤ', 'POZNÁMKA / UČITEĽ'],
   fg: 'white',
   selectedFg: 'black',
@@ -293,7 +337,7 @@ const fullTimetableTable = contrib.table({
   border: { type: 'line', fg: 'green' },
   label: ' [ KOMPLETNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ] ',
   columnSpacing: 2,
-  columnWidth: [4, 13, 26, 20, 16, 11, 26],
+  columnWidth: [4, 13, 30, 22, 24, 12, 36],
   headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
   fg: 'white',
   selectedFg: 'black',
@@ -344,7 +388,7 @@ const fullLunchesTable = contrib.table({
   border: { type: 'line', fg: 'cyan' },
   label: ' [ JEDÁLNY LÍSTOK NA DNES ] ',
   columnSpacing: 2,
-  columnWidth: [4, 46, 8, 14, 11],
+  columnWidth: [4, 65, 10, 18, 12],
   headers: ['#', 'NÁZOV JEDLA', 'GRAMÁŽ', 'ALERGÉNY', 'OBJEDNANÉ'],
   fg: 'white',
   selectedFg: 'black',
@@ -395,7 +439,7 @@ const fullTasksTable = contrib.table({
   border: { type: 'line', fg: 'green' },
   label: ' [ ZOZNAM DOMÁCICH ÚLOH, TESTOV A ZADANÍ ] ',
   columnSpacing: 2,
-  columnWidth: [12, 14, 22, 50],
+  columnWidth: [12, 12, 22, 90],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'TEXT ZADANIA'],
   fg: 'white',
   selectedFg: 'black',
@@ -604,8 +648,8 @@ function updateWidgets() {
     g.subject || '-',
     g.grade || '-',
     g.weight || '-',
-    (g.title || '-').slice(0, 26),
-    (g.comment || '-').slice(0, 20),
+    g.title || '-',
+    g.comment || '-',
   ]);
   fullGradesTable.setData({
     headers: ['DÁTUM', 'PREDMET', 'ZNÁMKA', 'VÁHA', 'ZADANIE / UDALOSŤ', 'POZNÁMKA / UČITEĽ'],
