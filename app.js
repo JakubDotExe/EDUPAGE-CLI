@@ -188,18 +188,15 @@ const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
   },
 });
 
-// 2. Marks Distribution (Bar chart - Cyan Border)
-const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
+// 2. Marks Distribution (High-contrast btop-style horizontal meter - Cyan Border)
+const distributionBox = monitorGrid.set(5, 0, 4, 6, blessed.box, {
   label: ' [ ROZDELENIE ZNÁMOK (1 - 5) ] ',
-  barWidth: 4,
-  barSpacing: 4,
-  xOffset: 2,
-  maxHeight: 20,
+  tags: true,
   border: { type: 'line', fg: 'cyan' },
   style: {
     border: { fg: 'cyan' },
-    text: 'white',
-    barBgColor: 'cyan',
+    fg: 'white',
+    bg: 'black',
   },
 });
 
@@ -326,16 +323,32 @@ const viewTimetable = blessed.box({
   hidden: true,
 });
 
-const fullTimetableTable = contrib.table({
+const timetableInfoBox = blessed.box({
   parent: viewTimetable,
   top: 0,
   left: 0,
   width: '100%',
-  height: '100%',
+  height: 3,
+  tags: true,
+  border: { type: 'line', fg: 'green' },
+  label: ' [ TÝŽDENNÝ ROZVRH HODÍN ] ',
+  style: {
+    border: { fg: 'green' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const fullTimetableTable = contrib.table({
+  parent: viewTimetable,
+  top: 3,
+  left: 0,
+  width: '100%',
+  height: '100%-3',
   keys: true,
   interactive: true,
   border: { type: 'line', fg: 'green' },
-  label: ' [ KOMPLETNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ] ',
+  label: ' [ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ] ',
   columnSpacing: 2,
   columnWidth: [4, 13, 30, 22, 24, 12, 36],
   headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
@@ -532,6 +545,208 @@ function updateHeader() {
   );
 }
 
+// Active Timetable Day State (0=Pondelok, 1=Utorok, 2=Streda, 3=Štvrtok, 4=Piatok, 5=Celý týždeň)
+let selectedDayIndex = (new Date().getDay() + 6) % 7;
+if (selectedDayIndex > 4) selectedDayIndex = 0;
+
+function updateLiveProgress() {
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+  const tt = dashboardData.timetable || [];
+
+  if (!tt || tt.length === 0) {
+    lessonGauge.setLabel(' [ ROZVRH: Žiadne naplánované hodiny ] ');
+    lessonGauge.setPercent(0);
+    return;
+  }
+
+  const parsedLessons = tt.map((l) => {
+    let startSec = l.start_sec;
+    let endSec = l.end_sec;
+    if (startSec == null && l.time && l.time.includes('-')) {
+      const parts = l.time.split('-');
+      const [sh, sm] = parts[0].trim().split(':').map(Number);
+      const [eh, em] = parts[1].trim().split(':').map(Number);
+      startSec = sh * 3600 + sm * 60;
+      endSec = eh * 3600 + em * 60;
+    }
+    return { ...l, startSec, endSec };
+  });
+
+  const activeLessons = parsedLessons.filter(
+    (l) => l.startSec != null && l.endSec != null && l.status !== 'ODPADLA' && l.status !== 'VOĽNO'
+  );
+
+  if (activeLessons.length === 0) {
+    lessonGauge.setLabel(' [ VOĽNÝ DEŇ: Žiadne vyučovanie ] ');
+    lessonGauge.setPercent(100);
+    return;
+  }
+
+  const firstLesson = activeLessons[0];
+  const lastLesson = activeLessons[activeLessons.length - 1];
+
+  let current = null;
+  let next = null;
+  let prev = null;
+
+  for (let i = 0; i < activeLessons.length; i++) {
+    const l = activeLessons[i];
+    if (nowSec >= l.startSec && nowSec <= l.endSec) {
+      current = l;
+      next = activeLessons[i + 1] || null;
+      break;
+    }
+    if (nowSec < l.startSec) {
+      next = l;
+      prev = activeLessons[i - 1] || null;
+      break;
+    }
+    prev = l;
+  }
+
+  if (nowSec < firstLesson.startSec) {
+    const remSec = firstLesson.startSec - nowSec;
+    const remMin = Math.ceil(remSec / 60);
+    const startStr = firstLesson.start || (firstLesson.time ? firstLesson.time.split('-')[0] : '08:45');
+    lessonGauge.setLabel(` [ PRED VYUČOVANÍM: 1. hodina ${firstLesson.subject} začína o ${startStr} (zostáva ${remMin} min) ] `);
+    lessonGauge.setPercent(0);
+  } else if (current) {
+    const totalSec = Math.max(1, current.endSec - current.startSec);
+    const elapsedSec = Math.max(0, nowSec - current.startSec);
+    const remSec = Math.max(0, current.endSec - nowSec);
+    const remMin = Math.ceil(remSec / 60);
+    const pct = Math.max(0, Math.min(100, Math.round((elapsedSec / totalSec) * 100)));
+    lessonGauge.setLabel(` [ PREBIEHA: ${current.subject} (${current.time}) │ ${pct}% │ zostáva ${remMin} min ] `);
+    lessonGauge.setPercent(pct);
+  } else if (nowSec > lastLesson.endSec) {
+    lessonGauge.setLabel(' [ KONIEC VYUČOVANIA: Dnes absolvované všetky hodiny │ Voľno ] ');
+    lessonGauge.setPercent(100);
+  } else if (prev && next) {
+    const totalBreak = Math.max(1, next.startSec - prev.endSec);
+    const elapsedBreak = Math.max(0, nowSec - prev.endSec);
+    const remSec = Math.max(0, next.startSec - nowSec);
+    const remMin = Math.ceil(remSec / 60);
+    const pct = Math.max(0, Math.min(100, Math.round((elapsedBreak / totalBreak) * 100)));
+    const breakType = totalBreak >= 900 ? 'VEĽKÁ PRESTÁVKA' : 'PRESTÁVKA';
+    const nextStart = next.start || (next.time ? next.time.split('-')[0] : '');
+    const nextRoom = next.room && next.room !== '-' ? ` (${next.room})` : '';
+    lessonGauge.setLabel(` [ ${breakType}: do ${nextStart} │ Nasleduje: ${next.subject}${nextRoom} │ ${pct}% │ zostáva ${remMin} min ] `);
+    lessonGauge.setPercent(pct);
+  }
+
+  // Live update monitor timetable table
+  const updatedTtRows = parsedLessons.map((l) => {
+    let st = l.status;
+    if (l.status === 'ODPADLA') {
+      st = 'ODPADLA';
+    } else if (l.status === 'VOĽNO') {
+      st = 'VOĽNO';
+    } else if (current && l.period === current.period && l.subject === current.subject) {
+      st = '>> TERAZ';
+    } else if (next && l.period === next.period && l.subject === next.subject) {
+      st = '> NA RADE';
+    } else if (l.endSec != null && nowSec > l.endSec) {
+      st = 'HOTOVO';
+    } else {
+      st = 'PLÁN';
+    }
+    return [
+      l.period || '-',
+      l.time || '-',
+      l.subject || '-',
+      l.teacher || '-',
+      st,
+    ];
+  });
+
+  timetableTable.setData({
+    headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
+    data: updatedTtRows.length > 0 ? updatedTtRows : [['-', '-', 'Dnes nie sú naplánované žiadne hodiny', '-', '-']],
+  });
+}
+
+function updateTimetableTab() {
+  const weekTt = dashboardData.week_timetable || {};
+  const dayKeys = Object.keys(weekTt).sort();
+  const dayNames = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok'];
+
+  let pills = [];
+  for (let i = 0; i < 5; i++) {
+    const k = dayKeys[i];
+    const dInfo = k ? weekTt[k] : null;
+    const name = dInfo ? dInfo.day_name : dayNames[i];
+    const isToday = dInfo ? dInfo.is_today : false;
+    const todayMarker = isToday ? ' [DNES]' : '';
+    if (selectedDayIndex === i) {
+      pills.push(`{black-bg}{green-fg}{bold} ${name}${todayMarker} {/}`);
+    } else if (isToday) {
+      pills.push(`{cyan-fg}[${name}*]{/}`);
+    } else {
+      pills.push(`{grey-fg}${name}{/}`);
+    }
+  }
+  if (selectedDayIndex === 5) {
+    pills.push('{black-bg}{green-fg}{bold} CELÝ TÝŽDEŇ {/}');
+  } else {
+    pills.push('{grey-fg}Celý týždeň{/}');
+  }
+
+  timetableInfoBox.setContent(
+    ` ${pills.join('  │  ')}\n` +
+    ' {grey-fg}Navigácia: [← / →] Dni │ [W] Celý týždeň │ [P] Pondelok │ [U] Utorok │ [S] Streda │ [T] Štvrtok │ [F] Piatok{/}'
+  );
+
+  let rows = [];
+  if (selectedDayIndex === 5) {
+    dayKeys.forEach((k) => {
+      const dInfo = weekTt[k];
+      if (dInfo && dInfo.lessons && dInfo.lessons.length > 0) {
+        dInfo.lessons.forEach((l) => {
+          rows.push([
+            `${dInfo.day_name.slice(0, 2)} ${l.period || '-'}`,
+            l.time || '-',
+            l.subject || '-',
+            l.teacher || '-',
+            l.room || '-',
+            l.status || '-',
+            l.topic || '-',
+          ]);
+        });
+      }
+    });
+  } else {
+    const selectedKey = dayKeys[selectedDayIndex];
+    const dInfo = selectedKey ? weekTt[selectedKey] : null;
+    if (dInfo && dInfo.lessons && dInfo.lessons.length > 0) {
+      rows = dInfo.lessons.map((l) => [
+        l.period || '-',
+        l.time || '-',
+        l.subject || '-',
+        l.teacher || '-',
+        l.room || '-',
+        l.status || '-',
+        l.topic || '-',
+      ]);
+    } else if (dashboardData.timetable && selectedDayIndex === ((new Date().getDay() + 6) % 7)) {
+      rows = dashboardData.timetable.map((l) => [
+        l.period || '-',
+        l.time || '-',
+        l.subject || '-',
+        l.teacher || '-',
+        l.room || '-',
+        l.status || '-',
+        l.topic || '-',
+      ]);
+    }
+  }
+
+  fullTimetableTable.setData({
+    headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
+    data: rows.length > 0 ? rows : [['-', '-', 'V tento deň nie sú naplánované žiadne hodiny (voľno / prázdniny)', '-', '-', '-', '-']],
+  });
+}
+
 function updateWidgets() {
   updateHeader();
 
@@ -543,8 +758,8 @@ function updateWidgets() {
     if (tx.length > 5) {
       const step = (tx.length - 1) / 4;
       const idxs = [0, Math.round(step), Math.round(step * 2), Math.round(step * 3), tx.length - 1];
-      tx = idxs.map(i => rawTrend.x[i]);
-      ty = idxs.map(i => rawTrend.y[i]);
+      tx = idxs.map((i) => rawTrend.x[i]);
+      ty = idxs.map((i) => rawTrend.y[i]);
     }
     lineGraph.setData([
       {
@@ -556,50 +771,36 @@ function updateWidgets() {
     ]);
   }
 
-  // 2. Bar Graph
-  const dist = dashboardData.distribution || { titles: ['1', '2', '3', '4', '5'], data: [0, 0, 0, 0, 0] };
-  barGraph.setData({
-    titles: dist.titles,
-    data: dist.data,
-  });
+  // 2. High-contrast btop-style Grade Distribution Box
+  const distData = (dashboardData.distribution && dashboardData.distribution.data) || [0, 0, 0, 0, 0];
+  const distLabels = ['Výborný', 'Chválitebný', 'Dobrý', 'Dostatočný', 'Nedostatočný'];
+  const distColors = ['green-fg', 'cyan-fg', 'yellow-fg', 'magenta-fg', 'red-fg'];
+  const maxCount = Math.max(...distData, 1);
+  const totalMarks = distData.reduce((a, b) => a + b, 0);
 
-  // 3. Timetable Table (Monitor)
-  const ttList = dashboardData.timetable || [];
-  let currentLesson = null;
-  const ttRows = ttList.map((l) => {
-    let st = l.status || 'OK';
-    if (st === 'CURRENT') {
-      st = '>> TERAZ';
-      currentLesson = l;
-    } else if (st === 'NEXT') {
-      st = '> NA RAD';
-    } else if (st === 'DONE') {
-      st = 'HOTOVO';
-    } else if (st === 'CANCELLED') {
-      st = 'ODPADLA';
-    }
-
-    return [
-      l.period || '-',
-      l.time || '-',
-      l.subject || '-',
-      l.teacher || '-',
-      st,
-    ];
+  let distLines = [];
+  distData.forEach((count, i) => {
+    const gradeNum = i + 1;
+    const label = distLabels[i].padEnd(12, ' ');
+    const color = distColors[i];
+    const pct = totalMarks > 0 ? ((count / totalMarks) * 100).toFixed(1) : '0.0';
+    const barLen = Math.round((count / maxCount) * 22);
+    const barStr = barLen > 0 ? '█'.repeat(barLen) : '░';
+    const paddedBar = barStr.padEnd(23, ' ');
+    const countStr = String(count).padStart(2, ' ');
+    const pctStr = `(${pct}%)`.padStart(7, ' ');
+    distLines.push(` {bold}${gradeNum}{/bold}  ${label} {${color}}${paddedBar}{/${color}} {bold}${countStr}{/bold}  {grey-fg}${pctStr}{/grey-fg}`);
   });
-  timetableTable.setData({
-    headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
-    data: ttRows.length > 0 ? ttRows : [['-', '-', 'Dnes nie sú naplánované žiadne hodiny', '-', '-']],
-  });
+  const passCount = distData[0] + distData[1] + distData[2] + distData[3];
+  const passRate = totalMarks > 0 ? ((passCount / totalMarks) * 100).toFixed(1) : '0.0';
+  distLines.push(` {bold}SPOLU:{/bold} ${totalMarks} známok  │  {bold}PRIEMER:{/bold} {green-fg}${dashboardData.gpa || '-'}{/green-fg}  │  {bold}ÚSPEŠNOSŤ:{/bold} ${passRate}%`);
+  distributionBox.setContent(distLines.join('\n'));
 
-  // 4. Lesson Progress Gauge
-  const prog = dashboardData.lesson_progress || 0;
-  if (currentLesson) {
-    lessonGauge.setLabel(' [ PREBIEHA: ' + currentLesson.subject + ' (' + prog + '%) ] ');
-  } else {
-    lessonGauge.setLabel(' [ PRESTÁVKA / VOĽNO (DO ' + (dashboardData.next_bell || '-') + ') ] ');
-  }
-  lessonGauge.setPercent(prog);
+  // 3. Live Timetable & Progress Calculation
+  updateLiveProgress();
+
+  // 4. Tab 3 Timetable View
+  updateTimetableTab();
 
   // 5. Mini Lunch Box (Monitor)
   const lunch = dashboardData.lunches;
@@ -656,20 +857,8 @@ function updateWidgets() {
     data: allGradesRows.length > 0 ? allGradesRows : [['-', '-', '-', '-', 'Žiadne zapísané známky', '-']],
   });
 
-  // 8. Timetable View
-  const fullTtRows = ttList.map((l) => [
-    l.period || '-',
-    l.time || '-',
-    l.subject || '-',
-    l.teacher || '-',
-    l.room || '-',
-    l.status === 'CURRENT' ? '>> TERAZ' : (l.status === 'NEXT' ? '> NA RADE' : (l.status === 'DONE' ? 'HOTOVO' : `[${l.status}]`)),
-    l.topic || '-',
-  ]);
-  fullTimetableTable.setData({
-    headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
-    data: fullTtRows.length > 0 ? fullTtRows : [['-', '-', 'Dnes nie sú naplánované žiadne hodiny', '-', '-', '-', '-']],
-  });
+  // 8. Timetable View (Managed by updateTimetableTab())
+  updateTimetableTab();
 
   // 9. Lunches View
   if (lunch) {
@@ -818,13 +1007,82 @@ screen.key(['3'], () => switchTab(2));
 screen.key(['4'], () => switchTab(3));
 screen.key(['5'], () => switchTab(4));
 
-// Left / Right Tab Switching
-screen.key(['left', 'h', '['], () => {
+// Left / Right Tab Switching or Day Switching in Rozvrh
+screen.key(['['], () => {
   switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
 });
 
-screen.key(['right', 'l', ']'], () => {
+screen.key([']'], () => {
   switchTab((activeTabIndex + 1) % TABS.length);
+});
+
+screen.key(['left', 'h'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = (selectedDayIndex - 1 + 6) % 6;
+    updateTimetableTab();
+    screen.render();
+  } else {
+    switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
+  }
+});
+
+screen.key(['right', 'l'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = (selectedDayIndex + 1) % 6;
+    updateTimetableTab();
+    screen.render();
+  } else {
+    switchTab((activeTabIndex + 1) % TABS.length);
+  }
+});
+
+// Timetable Day Quick Keys (when inside Tab 3: Rozvrh)
+screen.key(['p', 'P'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 0; // Pondelok
+    updateTimetableTab();
+    screen.render();
+  }
+});
+
+screen.key(['u', 'U'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 1; // Utorok
+    updateTimetableTab();
+    screen.render();
+  }
+});
+
+screen.key(['s', 'S'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 2; // Streda
+    updateTimetableTab();
+    screen.render();
+  }
+});
+
+screen.key(['t', 'T'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 3; // Štvrtok
+    updateTimetableTab();
+    screen.render();
+  }
+});
+
+screen.key(['f', 'F'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 4; // Piatok
+    updateTimetableTab();
+    screen.render();
+  }
+});
+
+screen.key(['w', 'W'], () => {
+  if (activeTabIndex === 2) {
+    selectedDayIndex = 5; // Celý týždeň
+    updateTimetableTab();
+    screen.render();
+  }
 });
 
 // Tab / Shift-Tab widget focus cycling inside active tab
@@ -870,6 +1128,7 @@ updateWidgets();
 
 setInterval(() => {
   updateHeader();
+  updateLiveProgress();
   screen.render();
 }, 1000);
 

@@ -24,7 +24,7 @@ from edupage_api.exceptions import (
 )
 from edupage_api.grades import EduGrade, EduTextGrade, Term
 from edupage_api.lunches import Meal, Meals, Menu
-from edupage_api.people import EduAccount, EduStudent, EduTeacher
+from edupage_api.people import EduAccount, EduStudent, EduTeacher, People
 from edupage_api.ringing import RingingTime, RingingType
 from edupage_api.substitution import Action, TimetableChange
 from edupage_api.timeline import EventType, TimelineEvent
@@ -1290,25 +1290,46 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
-    # 2. Timetable
+    # 2. Timetable (Student-Specific with Real Cancellations & Full Week Support)
     try:
-        tt = edupage.get_my_timetable(date.today())
+        user_id = edupage.get_user_id()
+        student_id = user_id.replace("Student", "") if (user_id and user_id.startswith("Student")) else None
+        student_obj = People(edupage).get_student(student_id) if student_id else None
+
+        today = date.today()
+        tt = edupage.get_timetable(student_obj, today) if student_obj else edupage.get_my_timetable(today)
         if tt and tt.lessons:
             sorted_lessons = sorted(
                 tt.lessons,
                 key=lambda l: (l.period if l.period is not None else 99, l.start_time or time.min),
             )
+
+            # Insert Period 1 free period if class starts at Period 2 or later
+            valid_active = [l for l in sorted_lessons if (l.subject is not None or l.is_event) and not l.is_cancelled]
+            if valid_active and valid_active[0].period is not None and valid_active[0].period > 1:
+                first_p = valid_active[0].period
+                data["timetable"].append({
+                    "period": "1",
+                    "time": "07:55-08:40",
+                    "start": "07:55",
+                    "end": "08:40",
+                    "start_sec": 7 * 3600 + 55 * 60,
+                    "end_sec": 8 * 3600 + 40 * 60,
+                    "subject": "Voľná hodina",
+                    "room": "-",
+                    "teacher": "-",
+                    "status": "VOĽNO",
+                    "topic": f"Začiatok vyučovania {first_p}. hodinou",
+                })
+
             next_found = False
             for l in sorted_lessons:
-                # Filter out phantom/empty lessons (e.g. cancelled placeholder periods with no subject)
                 if l.subject is None and (l.is_cancelled or not l.start_time):
-                    continue
-                if l.is_cancelled and not l.subject and not l.curriculum:
                     continue
 
                 p_str = str(l.period) if l.period is not None else "-"
                 t_str = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
-                s_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Free period")
+                s_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Voľná hodina")
                 if l.groups:
                     group_str = ", ".join(l.groups)
                     s_name = f"{s_name} ({group_str})"
@@ -1317,16 +1338,19 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                 tc_str = ", ".join(t.name for t in l.teachers) if l.teachers else "-"
                 topic_str = l.curriculum or "-"
 
-                status_str = "OK"
+                start_s = (l.start_time.hour * 3600 + l.start_time.minute * 60) if l.start_time else None
+                end_s = (l.end_time.hour * 3600 + l.end_time.minute * 60) if l.end_time else None
+
+                status_str = "PLÁN"
                 if l.is_cancelled:
-                    status_str = "CANCELLED"
+                    status_str = "ODPADLA"
                 elif l.is_event:
-                    status_str = "EVENT"
+                    status_str = "UDALOSŤ"
                 elif l.start_time and l.end_time:
                     if l.start_time <= now_time <= l.end_time:
                         status_str = "CURRENT"
-                        total_secs = (datetime.combine(date.today(), l.end_time) - datetime.combine(date.today(), l.start_time)).total_seconds()
-                        elapsed_secs = (datetime.combine(date.today(), now_time) - datetime.combine(date.today(), l.start_time)).total_seconds()
+                        total_secs = (datetime.combine(today, l.end_time) - datetime.combine(today, l.start_time)).total_seconds()
+                        elapsed_secs = (datetime.combine(today, now_time) - datetime.combine(today, l.start_time)).total_seconds()
                         if total_secs > 0:
                             data["lesson_progress"] = max(0, min(100, int(elapsed_secs / total_secs * 100)))
                     elif now_time > l.end_time:
@@ -1338,12 +1362,58 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                 data["timetable"].append({
                     "period": p_str,
                     "time": t_str,
+                    "start": l.start_time.strftime("%H:%M") if l.start_time else None,
+                    "end": l.end_time.strftime("%H:%M") if l.end_time else None,
+                    "start_sec": start_s,
+                    "end_sec": end_s,
                     "subject": s_name,
                     "room": r_str,
                     "teacher": tc_str,
                     "status": status_str,
                     "topic": topic_str,
                 })
+
+        # Fetch week schedule (Monday - Friday) for Tab 3 navigation
+        monday = today - timedelta(days=today.weekday())
+        week_days = {}
+        day_names_sk = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok"]
+        for i in range(5):
+            cur_d = monday + timedelta(days=i)
+            d_str = cur_d.strftime("%Y-%m-%d")
+            cur_tt = edupage.get_timetable(student_obj, cur_d) if student_obj else edupage.get_my_timetable(cur_d)
+            day_lessons = []
+            if cur_tt and cur_tt.lessons:
+                sorted_cur = sorted(
+                    cur_tt.lessons,
+                    key=lambda l: (l.period if l.period is not None else 99, l.start_time or time.min),
+                )
+                for l in sorted_cur:
+                    if l.subject is None and (l.is_cancelled or not l.start_time):
+                        continue
+                    p_s = str(l.period) if l.period is not None else "-"
+                    t_s = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
+                    s_n = l.subject.name if l.subject else (l.curriculum if l.is_event else "Voľná hodina")
+                    if l.groups:
+                        s_n = f"{s_n} ({', '.join(l.groups)})"
+                    r_s = ", ".join(c.name for c in l.classrooms) if l.classrooms else "-"
+                    tc_s = ", ".join(t.name for t in l.teachers) if l.teachers else "-"
+                    st_s = "ODPADLA" if l.is_cancelled else "PLÁN"
+                    day_lessons.append({
+                        "period": p_s,
+                        "time": t_s,
+                        "subject": s_n,
+                        "room": r_s,
+                        "teacher": tc_s,
+                        "status": st_s,
+                        "topic": l.curriculum or "-",
+                    })
+            week_days[d_str] = {
+                "day_name": day_names_sk[i],
+                "date": d_str,
+                "is_today": (cur_d == today),
+                "lessons": day_lessons,
+            }
+        data["week_timetable"] = week_days
     except Exception:
         pass
 
@@ -1352,9 +1422,21 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         grades = edupage.get_grades()
         data["total_marks"] = len(grades)
 
+        # Process ALL grades for distribution so nothing is skipped
         dist = [0, 0, 0, 0, 0]
-        chronological_grades = sorted([g for g in grades if g.date], key=lambda g: g.date)
+        for g in grades:
+            num = parse_slovak_grade(g)
+            if num is not None and 1.0 <= num <= 5.0:
+                dist[min(4, max(0, int(round(num)) - 1))] += 1
 
+        data["distribution"] = {
+            "titles": ["1", "2", "3", "4", "5"],
+            "data": dist,
+            "labels": ["Výborný", "Chválitebný", "Dobrý", "Dostatočný", "Nedostatočný"],
+            "total": sum(dist),
+        }
+
+        chronological_grades = sorted([g for g in grades if g.date], key=lambda g: g.date)
         cum_weighted_sum = 0.0
         cum_weight_total = 0.0
         trend_x = []
@@ -1363,15 +1445,12 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         for g in chronological_grades:
             num = parse_slovak_grade(g)
             if num is not None and 1.0 <= num <= 5.0:
-                dist[min(4, max(0, int(round(num)) - 1))] += 1
                 w = g.importance if (g.importance and g.importance > 0) else 1.0
                 cum_weighted_sum += num * w
                 cum_weight_total += w
                 curr_gpa = round(cum_weighted_sum / cum_weight_total, 2)
                 trend_x.append(g.date.strftime("%d.%m"))
                 trend_y.append(curr_gpa)
-
-        data["distribution"]["data"] = dist
 
         if len(trend_x) > 10:
             step = (len(trend_x) - 1) / 9
