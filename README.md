@@ -2,6 +2,28 @@
 
 This Python library allows easy access to EduPage. It's not a Selenium web scraper. It makes requests directly to EduPage's endpoints and parses the HTML document.
 
+# EduPage CLI
+
+Súčasťou je jednoduchý CLI nástroj na zobrazenie prehľadu známok priamo v termináli:
+
+```bash
+# Spustenie priamo cez Python
+python cli.py
+
+# Alebo cez nainštalovaný príkaz (po pip install -e .)
+edupage-cli
+```
+
+### Možnosti a parametre:
+- `-u`, `--username`: Prihlasovacie meno alebo e-mail (alebo premenná prostredia `EDUPAGE_USERNAME`)
+- `-p`, `--password`: Heslo (alebo premenná prostredia `EDUPAGE_PASSWORD`). Ak nezadáte, program si ho bezpečne vyžiada cez `getpass`.
+- `-s`, `--subdomain`: Subdoména školy (napr. `gympos` pre `gympos.edupage.org`). Ak vynecháte, pokúsi sa o automatické zistenie.
+- `-t`, `--term`: Polrok (`1` pre 1. polrok, `2` pre 2. polrok).
+- `-y`, `--year`: Školský rok (napr. `2026`).
+- `--subject`: Filtrovanie podľa názvu predmetu (napr. `--subject Matematika`).
+- `--json`: Výpis v JSON formáte.
+- `--no-color`: Vypnutie farebného formátovania.
+
 # Installing
 __Warning__: Requires Python >= 3.9!
 

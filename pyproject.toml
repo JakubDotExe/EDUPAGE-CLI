@@ -29,6 +29,9 @@ classifiers = [
 ]
 dependencies = ["requests>=2.28"]
 
+[project.scripts]
+edupage-cli = "edupage_api.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/EdupageAPI/edupage-api"
 Documentation = "https://edupageapi.github.io/edupage-api"
