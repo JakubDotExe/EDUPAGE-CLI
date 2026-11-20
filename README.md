@@ -1,78 +1,140 @@
-# `edupage-api` &middot; [![Current version on PyPI](https://img.shields.io/pypi/v/edupage-api)](https://pypi.org/project/edupage-api/) [![Supported Python versions](https://img.shields.io/pypi/pyversions/edupage-api)](https://pypi.org/project/edupage-api/) [![PyPI - Downloads](https://img.shields.io/pypi/dw/edupage-api)](https://pypistats.org/packages/edupage-api) [![CodeFactor](https://www.codefactor.io/repository/github/EdupageAPI/edupage-api/badge)](https://www.codefactor.io/repository/github/EdupageAPI/edupage-api)
+# EDUPAGE CLI
 
-This Python library allows easy access to EduPage. It's not a Selenium web scraper. It makes requests directly to EduPage's endpoints and parses the HTML document.
+> Moderný, vysoko-kontrastný terminálový monitor a klient pre EduPage inšpirovaný nástrojom **btop**.
 
-# EduPage CLI
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen.svg)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
-Moderný terminálový TUI monitor a klient pre EduPage v skutočnom štýle **btop** (grafy, Braille krivky, stĺpcové grafy, progress gauge a responzívny 12x12 grid).
+---
 
+## Prehľad
+
+**EDUPAGE CLI** prináša rýchle, responzívne a estetické rozhranie priamo do vášho terminálu. Poskytuje okamžitý prehľad o aktuálnom školskom dni, rozvrhu, známkach, jedálnom lístku a domácich úlohách bez nutnosti otvárať prehliadač alebo mobilnú aplikáciu.
+
+---
+
+## Hlavné funkcie
+
+- **TUI Monitor v štýle btop**:
+  - **Braille krivka vývoja priemeru (GPA Trend)** vykresľovaná v reálnom čase.
+  - **Stĺpcový histogram rozdelenia známok** (počet jednotiek, dvojok, trojok, štvoriek a pätiek).
+  - **Živý ukazovateľ (Gauge bar)** aktuálnej hodiny alebo prestávky s percentuálnym priebehom a zostávajúcim časom.
+  - **Dnešný rozvrh hodín** s inteligentnou detekciou stavu (`>> TERAZ`, `> NA RADE`, `HOTOVO`, `[ODPADLA]`).
+  - **Prehľad jedálne** s informáciou o objednanom obede (Menu A / B / odhlásené) a časoch výdaja.
+  - **Najbližšie zadania** s termínmi a menami vyučujúcich.
+
+- **5 Plnohodnotných interaktívnych kariet**:
+  - **`1: MONITOR`** – Domovská obrazovka s prehľadovými panelmi a grafmi.
+  - **`2: ZNÁMKY`** – Celoobrazovkový prehľad predmetov, priemerov a kompletná história všetkých zapísaných známok s váhami a poznámkami.
+  - **`3: ROZVRH`** – Kompletný rozvrh dňa so skupinami, učebňami a preberanými témami hodín.
+  - **`4: OBEDY`** – Detailný jedálny lístok na dnešný deň, gramáž, alergény a stav objednávky.
+  - **`5: ÚLOHY`** – Zoznam všetkých aktívnych domácich úloh, projektov a písomiek.
+
+- **Korektný slovenský systém hodnotenia**:
+  - Výpočet celkového študijného priemeru (GPA) ako aritmetického priemeru výsledných známok jednotlivých predmetov.
+  - Automatické určenie celkového prospechu (*Prospel s vyznamenaním*, *Prospel veľmi dobre*, *Prospel*, *Neprospel*).
+
+- **Responzívny dizajn & Fullscreen**:
+  - Automatické maximalizovanie okna pri štarte cez `run.bat`.
+  - Pevné zarovnanie stĺpcov s ochranou proti zliepaniu textu a elegantné skracovanie dlhých názvov s trojbodkou (`…`).
+
+- **Automatické zapamätanie prihlásenia**:
+  - Prihlasovacie meno a subdoména školy sa bezpečne ukladajú lokálne (`~/.edupage/`), takže prihlásenie prebieha bleskovo a bez opätovného zadávania údajov.
+
+---
+
+## Požiadavky
+
+- **Node.js** >= 18
+- **Python** >= 3.10
+- Podporovaný terminál s UTF-8 kódovaním (Windows Terminal, Alacritty, Kitty, iTerm2, WezTerm alebo bežný PowerShell / cmd)
+
+---
+
+## Inštalácia
+
+1. Naklonujte repozitár:
+   ```bash
+   git clone https://github.com/JakubDotExe/EDUPAGE-CLI.git
+   cd EDUPAGE-CLI
+   ```
+
+2. Nainštalujte Node.js balíčky:
+   ```bash
+   npm install
+   ```
+
+3. Nainštalujte Python závislosti:
+   ```bash
+   pip install requests
+   # alebo
+   pip install -e .
+   ```
+
+---
+
+## Spustenie
+
+### Rýchle spustenie (Windows):
+Stačí spustiť dávkový súbor:
+```cmd
+run.bat
+```
+*(Automaticky maximalizuje terminálové okno a spustí monitor.)*
+
+### Spustenie cez terminál (Windows / Linux / macOS):
 ```bash
-# Spustenie moderného btop monitora (Node.js)
 npm start
 # alebo
 node app.js
-# alebo vo Windows dvojklik na run.bat
 ```
 
-### Hlavné vlastnosti:
-- **Živé grafy v štýle btop**: Braille krivka vývoja študijného priemeru (GPA History Line Graph) a stĺpcový graf distribúcie známok (1 až 5).
-- **Živý progress bar hodiny**: Gauge ukazujúci presný priebeh a minúty aktuálnej hodiny.
-- **Domovská obrazovka (Home Dashboard)**: Živý monitor s hodinami, časom posledného refreshu, dnešným rozvrhom (s indikáciou aktuálnej a nasledujúcej hodiny), poslednými známkami, dnešným obedom v jedálni a aktívnymi domácimi úlohami.
-- **Celoobrazovkový prehľad známok (`[1]`)**: Karty predmetov so študijným priemerom (GPA), váženými priemermi, percentami a podrobnými tabuľkami hodnotení.
-- **Rozvrh hodín**: Prehľad na dnes, zajtrajšok, celý týždeň alebo ľubovoľný dátum s vyznačením odpadnutých hodín.
-- **Jedáleň a obedy**: Stav objednávky (Menu A/B, odhlásené), časy výdaja, alergény.
-- **Automatické zapamätanie údajov**: Automaticky si pamätá prihlasovacie meno a subdoménu `ssnd`.
-- **Rýchla klávesová navigácia**: Klávesy `1`, `g` (známky), `r` (refresh), `q` (ukončenie).
+Pri prvom spustení vás aplikácia vyzve na zadanie vašej EduPage subdomény (napr. `ssnd`), prihlasovacieho mena a hesla. Údaje sa uložia a pri ďalšom spustení nabehnú automaticky.
 
-### Rýchle príkazy (neinteraktívny režim):
+---
+
+## Ovládanie a klávesové skratky
+
+| Klávesa | Akcia |
+| :--- | :--- |
+| `1` – `5` | Priamy skok na kartu (`1: Monitor`, `2: Známky`, `3: Rozvrh`, `4: Obedy`, `5: Úlohy`) |
+| `←` / `→` | Prepínanie medzi kartami |
+| `Tab` | Prepínanie fokusu medzi oknami a tabuľkami na aktívnej karte |
+| `↑` / `↓` | Pohyb a rolovanie v zoznamoch a tabuľkách |
+| `r` | Okamžitá manuálna synchronizácia údajov zo servera EduPage |
+| `q` / `Esc` | Ukončenie aplikácie |
+
+---
+
+## Neinteraktívny režim (Rýchle príkazy)
+
+Ak potrebujete rýchlo skontrolovať údaje z príkazového riadka bez interaktívneho monitora:
+
 ```bash
-python cli.py grades                   # Celoobrazovkový prehľad známok
-python cli.py timetable --week         # Rozvrh na celý týždeň
-python cli.py substitution --tomorrow  # Suplovanie na zajtra
-python cli.py lunches                  # Dnešný obed a jedálny lístok
-python cli.py homework                 # Domáce úlohy a písomky
-python cli.py ringing                  # Najbližšie zvonenie a rozpis
-python cli.py teachers -q "novak"      # Vyhľadanie učiteľa
-python cli.py logout                   # Zmazanie uloženého prihlásenia
+python cli.py grades                   # Prehľad známok a priemerov
+python cli.py timetable --week         # Rozvrh hodín na celý týždeň
+python cli.py lunches                  # Dnešné menu v jedálni
+python cli.py homework                 # Aktuálne úlohy a zadania
+python cli.py ringing                  # Časy zvonenia a aktuálna hodina
+python cli.py substitution --tomorrow  # Suplovanie na zajtrajší deň
+python cli.py logout                   # Odhlásenie a zmazanie uložených údajov
 ```
 
-# Installing
-__Warning__: Requires Python >= 3.9!
+---
 
-You can install this library using [`pip`](https://pypi.org/project/pip/):
+## Konfigurácia a vyrovnávacia pamäť
 
-```
-pip install edupage-api
-```
-
-# Usage
-
-## Login
-
-You can log in easily, it works with any school:
-
-```python
-from edupage_api import Edupage
-from edupage_api.exceptions import BadCredentialsException, CaptchaException
-
-edupage = Edupage()
-
-try:
-    edupage.login("Username", "Password", "Your school's subdomain")
-except BadCredentialsException:
-    print("Wrong username or password!")
-except CaptchaException:
-    print("Captcha required!")
+Konfigurácia a lokálna vyrovnávacia pamäť sú uložené v domovskom adresári používateľa:
+```text
+~/.edupage/
+├── credentials.json       # Bezpečne uložené prihlasovacie údaje
+└── dashboard_cache.json   # Lokálna kópia posledných načítaných dát pre okamžitý štart
 ```
 
-# Documentation
-The docs are available [here](https://edupageapi.github.io/edupage-api/)
+---
 
-# I have a problem or an idea!
+## Licencia
 
-- If you find any issue with this code, or it doesn't work please, let us know by opening an [issue](https://github.com/EdupageAPI/edupage-api/issues/new/choose)!
-- Feel free to suggest any other features! Just open an [issue with the _Feature Request_ tag](https://github.com/EdupageAPI/edupage-api/issues/new?labels=feature+request&template=feature_request.md&title=%5BFeature+request%5D+).
-- If you, even better, have fixed the issue, added a new feature, or made something work better, please, open a [pull request](https://github.com/EdupageAPI/edupage-api/compare)!
-
-# Discord
-https://discord.gg/fg6zBu9ZAn
+Tento projekt je licencovaný pod licenciou **GNU General Public License v3.0 (GPL-3.0)**. Podrobnosti nájdete v súbore [LICENSE](LICENSE).
