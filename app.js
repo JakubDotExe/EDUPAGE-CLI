@@ -5,6 +5,19 @@
  * real-time schedule, Slovak GPA analytics, cafeteria menu, and homework viewer.
  */
 
+// Fix drawille-canvas color mapping bug before loading blessed-contrib
+const drawille = require('drawille-canvas-blessed-contrib');
+drawille.colors = {
+  black: 0,
+  red: 1,
+  green: 2,
+  yellow: 3,
+  blue: 4,
+  magenta: 5,
+  cyan: 6,
+  white: 7,
+};
+
 const blessed = require('blessed');
 const contrib = require('blessed-contrib');
 const { spawn } = require('child_process');
@@ -43,25 +56,9 @@ let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
 
 // ==============================================================================
-// Styles & Theme
+// Top Header Box (Framed Master Header - Cyan Border)
 // ==============================================================================
 
-const STYLES = {
-  table: {
-    keys: true,
-    vi: true,
-    interactive: true,
-    border: { type: 'line', fg: 'grey' },
-    style: {
-      border: { fg: 'grey' },
-      header: { fg: 'cyan', bold: true },
-      cell: { fg: 'white', selectedFg: 'black', selectedBg: 'white' },
-    },
-  },
-};
-
-// ==============================================================================
-// Top Header Box
 const headerBox = blessed.box({
   parent: screen,
   top: 0,
@@ -69,16 +66,19 @@ const headerBox = blessed.box({
   width: '100%',
   height: 5,
   tags: true,
-  border: { type: 'line', fg: 'grey' },
-  label: ' [ EDUPAGE BTOP MONITOR ] ',
+  border: { type: 'line', fg: 'cyan' },
+  label: ' [ EDUPAGE BTOP MONITOR - ssnd.edupage.org ] ',
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'cyan' },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// Bottom Footer Box
+// ==============================================================================
+// Bottom Footer Box (Framed Commands Bar - White Border)
+// ==============================================================================
+
 const footerBox = blessed.box({
   parent: screen,
   bottom: 0,
@@ -86,17 +86,20 @@ const footerBox = blessed.box({
   width: '100%',
   height: 3,
   tags: true,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'white' },
   label: ' [ OVLÁDANIE & SKRATKY ] ',
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'white' },
     fg: 'white',
     bg: 'black',
   },
-  content: ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
+  content: ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie tabuľky  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
 });
 
+// ==============================================================================
 // Content Container (Between Header and Footer)
+// ==============================================================================
+
 const contentArea = blessed.box({
   parent: screen,
   top: 5,
@@ -123,78 +126,96 @@ const viewMonitor = blessed.box({
 
 const monitorGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewMonitor });
 
-// 1. Marks Trend (Braille line)
+// 1. Marks Trend (Braille line - Green Border)
 const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
   label: ' [ VÝVOJ PRIEMERU (GPA TREND) ] ',
-  showLegend: true,
+  showLegend: false,
   xPadding: 2,
-  xLabelPadding: 2,
+  xLabelPadding: 1,
   wholeNumbersOnly: false,
   minY: 1.0,
   maxY: 3.5,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'green' },
   style: {
     line: 'green',
-    text: 'white',
-    baseline: 'grey',
-    border: { fg: 'grey' },
+    text: 'green',
+    baseline: 'black',
+    border: { fg: 'green' },
   },
 });
 
-// 2. Marks Distribution (Bar chart)
+// 2. Marks Distribution (Bar chart - Cyan Border)
 const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
   label: ' [ ROZDELENIE ZNÁMOK (1 - 5) ] ',
-  barWidth: 5,
-  barSpacing: 3,
+  barWidth: 4,
+  barSpacing: 4,
   xOffset: 2,
   maxHeight: 20,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'cyan' },
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'cyan' },
     text: 'white',
     barBgColor: 'cyan',
   },
 });
 
-// 3. Mini Lunch Box
+// 3. Mini Lunch Box (Magenta Border)
 const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
   label: ' [ DNEŠNÝ OBED ] ',
   tags: true,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'magenta' },
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'magenta' },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// 4. Timetable Table
+// 4. Timetable Table (Yellow Border, Clean White on Black)
 const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
   label: ' [ DNEŠNÝ ROZVRH HODÍN ] ',
-  columnSpacing: 1,
-  columnWidth: [3, 11, 23, 16, 9],
+  border: { type: 'line', fg: 'yellow' },
+  columnSpacing: 2,
+  columnWidth: [4, 13, 26, 20, 10],
   headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'yellow' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
-// 5. Current Lesson Progress Gauge
+// 5. Current Lesson Progress Gauge (Green Border)
 const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
   label: ' [ PRIEBEH HODINY / PRESTÁVKA ] ',
   stroke: 'green',
   fill: 'white',
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'green' },
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'green' },
   },
 });
 
-// 6. Mini Tasks Table
+// 6. Mini Tasks Table (Cyan Border, Clean White on Black)
 const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
   label: ' [ AKTUÁLNE ZADANIA A PÍSOMKY ] ',
-  columnSpacing: 1,
-  columnWidth: [10, 10, 14, 20],
+  border: { type: 'line', fg: 'cyan' },
+  columnSpacing: 2,
+  columnWidth: [12, 10, 16, 26],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'cyan' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
 // ==============================================================================
@@ -212,22 +233,40 @@ const viewGrades = blessed.box({
 
 const gradesGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewGrades });
 
-// Subjects Table (Left, 4 cols)
+// Subjects Table (Left, 4 cols - Yellow Border)
 const subjectsTable = gradesGrid.set(0, 0, 12, 4, contrib.table, {
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
   label: ' [ PREDMETY ] ',
-  columnSpacing: 1,
-  columnWidth: [8, 8, 8, 6],
+  border: { type: 'line', fg: 'yellow' },
+  columnSpacing: 2,
+  columnWidth: [9, 9, 9, 7],
   headers: ['PREDMET', 'PRIEMER', 'ÚSPECH', 'POČET'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'yellow' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
-// Full Grades Table (Right, 8 cols)
+// Full Grades Table (Right, 8 cols - Green Border)
 const fullGradesTable = gradesGrid.set(0, 4, 12, 8, contrib.table, {
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
   label: ' [ VŠETKY ZAPÍSANÉ ZNÁMKY ] ',
-  columnSpacing: 1,
-  columnWidth: [10, 8, 14, 5, 26, 20],
+  border: { type: 'line', fg: 'green' },
+  columnSpacing: 2,
+  columnWidth: [11, 8, 14, 6, 26, 20],
   headers: ['DÁTUM', 'PREDMET', 'ZNÁMKA', 'VÁHA', 'ZADANIE / UDALOSŤ', 'POZNÁMKA / UČITEĽ'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'green' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
 // ==============================================================================
@@ -249,11 +288,20 @@ const fullTimetableTable = contrib.table({
   left: 0,
   width: '100%',
   height: '100%',
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
+  border: { type: 'line', fg: 'green' },
   label: ' [ KOMPLETNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ] ',
   columnSpacing: 2,
   columnWidth: [4, 13, 26, 20, 16, 11, 26],
   headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'green' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
 // ==============================================================================
@@ -276,10 +324,10 @@ const lunchesInfoBox = blessed.box({
   width: '100%',
   height: 4,
   tags: true,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'magenta' },
   label: ' [ ŠKOLSKÁ JEDÁLEŇ ] ',
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'magenta' },
     fg: 'white',
     bg: 'black',
   },
@@ -291,11 +339,20 @@ const fullLunchesTable = contrib.table({
   left: 0,
   width: '100%',
   height: '100%-4',
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
+  border: { type: 'line', fg: 'cyan' },
   label: ' [ JEDÁLNY LÍSTOK NA DNES ] ',
   columnSpacing: 2,
   columnWidth: [4, 46, 8, 14, 11],
   headers: ['#', 'NÁZOV JEDLA', 'GRAMÁŽ', 'ALERGÉNY', 'OBJEDNANÉ'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'cyan' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
 // ==============================================================================
@@ -318,10 +375,10 @@ const tasksInfoBox = blessed.box({
   width: '100%',
   height: 3,
   tags: true,
-  border: { type: 'line', fg: 'grey' },
+  border: { type: 'line', fg: 'blue' },
   label: ' [ PREHĽAD POVINNOSTÍ ] ',
   style: {
-    border: { fg: 'grey' },
+    border: { fg: 'blue' },
     fg: 'white',
     bg: 'black',
   },
@@ -333,11 +390,20 @@ const fullTasksTable = contrib.table({
   left: 0,
   width: '100%',
   height: '100%-3',
-  ...STYLES.table,
+  keys: true,
+  interactive: true,
+  border: { type: 'line', fg: 'green' },
   label: ' [ ZOZNAM DOMÁCICH ÚLOH, TESTOV A ZADANÍ ] ',
   columnSpacing: 2,
   columnWidth: [12, 14, 22, 50],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'TEXT ZADANIA'],
+  fg: 'white',
+  selectedFg: 'black',
+  selectedBg: 'white',
+  style: {
+    border: { fg: 'green' },
+    header: { fg: 'cyan', bold: true },
+  },
 });
 
 // View Containers & Focusable Widgets Registry
@@ -351,27 +417,6 @@ const TAB_WIDGETS = [
   [fullTasksTable],
 ];
 let activeWidgetIndex = 0;
-
-// Focus indicator styling
-function setupTableFocus(tableWidget) {
-  if (!tableWidget || !tableWidget.rows) return;
-  tableWidget.rows.on('focus', () => {
-    tableWidget.style.border.fg = 'green';
-    screen.render();
-  });
-  tableWidget.rows.on('blur', () => {
-    tableWidget.style.border.fg = 'grey';
-    screen.render();
-  });
-}
-
-// disabled
-// disabled
-// disabled
-// disabled
-// disabled
-// disabled
-// disabled
 
 // ==============================================================================
 // Tab Navigation
@@ -415,7 +460,6 @@ function updateHeader() {
   const nextBell = dashboardData.next_bell || '-';
   const gpa = dashboardData.gpa || '-';
   const standing = dashboardData.standing || '-';
-  const totalMarks = dashboardData.total_marks || 0;
 
   const standingColor = standing.includes('vyznamenan')
     ? '{green-fg}'
@@ -435,11 +479,11 @@ function updateHeader() {
     if (idx === activeTabIndex) {
       return `{black-bg}{white-fg}{bold}${label}{/bold}{/black-bg}`;
     }
-    return `{grey-fg}[${label.trim()}]{/grey-fg}`;
+    return `{cyan-fg}[${label.trim()}]{/cyan-fg}`;
   }).join('   ');
 
   headerBox.setContent(
-    ` {bold}POUŽÍVATEĽ:{/bold} ${user}  │  {bold}PRIEMER (GPA):{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}{bold}${standing}{/bold}{/}  │  {bold}ZNÁMOK:{/bold} ${totalMarks}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
+    ` {bold}POUŽÍVATEĽ:{/bold} ${user}  │  {bold}PRIEMER:{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}${standing}{/}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
     ` {bold}KARTY:{/bold}  ${tabButtons}`
   );
 }
@@ -447,14 +491,22 @@ function updateHeader() {
 function updateWidgets() {
   updateHeader();
 
-  // 1. Line Graph
-  const trend = dashboardData.trend || { x: [], y: [] };
-  if (trend.x && trend.x.length > 0) {
+  // 1. Line Graph (5 sampled dates max to avoid x-axis text wrapping)
+  const rawTrend = dashboardData.trend || { x: [], y: [] };
+  if (rawTrend.x && rawTrend.x.length > 0) {
+    let tx = rawTrend.x;
+    let ty = rawTrend.y;
+    if (tx.length > 5) {
+      const step = (tx.length - 1) / 4;
+      const idxs = [0, Math.round(step), Math.round(step * 2), Math.round(step * 3), tx.length - 1];
+      tx = idxs.map(i => rawTrend.x[i]);
+      ty = idxs.map(i => rawTrend.y[i]);
+    }
     lineGraph.setData([
       {
-        title: 'GPA Trend',
-        x: trend.x,
-        y: trend.y,
+        title: 'GPA',
+        x: tx,
+        y: ty,
         style: { line: 'green' },
       },
     ]);
