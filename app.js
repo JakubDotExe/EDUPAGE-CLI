@@ -78,6 +78,7 @@ const screen = blessed.screen({
   title: 'EDUPAGE BTOP MONITOR',
   fullUnicode: true,
   dockBorders: true,
+  terminal: 'xterm-256color',
   cursor: {
     artificial: true,
     shape: 'line',
@@ -85,6 +86,20 @@ const screen = blessed.screen({
     color: 'white',
   },
 });
+if (screen.tput) {
+  screen.tput.colors = 256;
+}
+
+// ==============================================================================
+// Monochrome + Active Orange Palette (256-Color Grayscale + Orange 208)
+// ==============================================================================
+
+const COLOR_ORANGE = 208;    // #ff8700 - ONLY for currently active/controlled element
+const COLOR_WHITE = 255;     // #eeeeee - Primary bright text
+const COLOR_LIGHT_GRAY = 250;// #bcbcbc - Secondary text / table headers
+const COLOR_MID_GRAY = 244;  // #808080 - Muted labels / borders / inactive tabs
+const COLOR_DARK_GRAY = 240; // #585858 - Subtle grid lines & inactive frames
+const COLOR_CHARCOAL = 236;  // #303030 - Dark surface highlight
 
 // Navigation State
 const TABS = ['monitor', 'timetable', 'grades', 'messages', 'lunches'];
@@ -102,7 +117,7 @@ let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
 
 // ==============================================================================
-// Top Header Box (Framed Master Header - Cyan Border)
+// Top Header Box (Monochrome Frame - Orange when Topbar is controlled)
 // ==============================================================================
 
 const headerBox = blessed.box({
@@ -112,17 +127,17 @@ const headerBox = blessed.box({
   width: '100%',
   height: 5,
   tags: true,
-  border: { type: 'line', fg: 'cyan' },
-  label: ' [ EDUPAGE BTOP MONITOR - ssnd.edupage.org ] ',
+  border: { type: 'line', fg: COLOR_ORANGE },
+  label: ' [ EDUPAGE MONITOR - ssnd.edupage.org ] ',
   style: {
-    border: { fg: 'cyan' },
+    border: { fg: COLOR_ORANGE },
     fg: 'white',
     bg: 'black',
   },
 });
 
 // ==============================================================================
-// Bottom Footer Box (Framed Commands Bar - White Border)
+// Bottom Footer Box (Minimal Monochrome Bar)
 // ==============================================================================
 
 const footerBox = blessed.box({
@@ -132,14 +147,14 @@ const footerBox = blessed.box({
   width: '100%',
   height: 3,
   tags: true,
-  border: { type: 'line', fg: 'white' },
-  label: ' [ OVLÁDANIE & SKRATKY ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ SKRATKY ] ',
   style: {
-    border: { fg: 'white' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
-  content: ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie tabuľky  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
+  content: ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Šípky]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}',
 });
 
 // ==============================================================================
@@ -172,92 +187,92 @@ const viewMonitor = blessed.box({
 
 const monitorGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewMonitor });
 
-// 1. Marks Trend (Braille line - Green Border)
+// 1. Marks Trend (Monochrome white line on dark gray border)
 const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
-  label: ' [ VÝVOJ PRIEMERU (GPA TREND) ] ',
+  label: ' [ VÝVOJ PRIEMERU ] ',
   showLegend: false,
   xPadding: 2,
   xLabelPadding: 1,
   wholeNumbersOnly: false,
   minY: 1.0,
   maxY: 3.5,
-  border: { type: 'line', fg: 'green' },
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   style: {
-    line: 'green',
-    text: 'green',
+    line: 'white',
+    text: 'white',
     baseline: 'black',
-    border: { fg: 'green' },
+    border: { fg: COLOR_DARK_GRAY },
   },
 });
 
-// 2. Marks Distribution (High-contrast btop-style horizontal meter - Cyan Border)
+// 2. Marks Distribution (Monochrome)
 const distributionBox = monitorGrid.set(5, 0, 4, 6, blessed.box, {
   label: ' [ ROZDELENIE ZNÁMOK (1 - 5) ] ',
   tags: true,
-  border: { type: 'line', fg: 'cyan' },
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   style: {
-    border: { fg: 'cyan' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// 3. Mini Lunch Box (Magenta Border)
+// 3. Mini Lunch Box (Monochrome)
 const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
   label: ' [ DNEŠNÝ OBED ] ',
   tags: true,
-  border: { type: 'line', fg: 'magenta' },
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   style: {
-    border: { fg: 'magenta' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// 4. Timetable Table (Yellow Border, Clean White on Black)
+// 4. Timetable Table (Monochrome; orange selection when focused)
 const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
   keys: true,
   interactive: true,
-  label: ' [ DNEŠNÝ ROZVRH HODÍN ] ',
-  border: { type: 'line', fg: 'yellow' },
+  label: ' [ DNEŠNÝ ROZVRH ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   columnSpacing: 2,
   columnWidth: [4, 13, 26, 20, 10],
   headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
   fg: 'white',
   selectedFg: 'black',
-  selectedBg: 'white',
+  selectedBg: COLOR_ORANGE,
   style: {
-    border: { fg: 'yellow' },
-    header: { fg: 'cyan', bold: true },
+    border: { fg: COLOR_DARK_GRAY },
+    header: { fg: 'white', bold: true },
   },
 });
 
-// 5. Current Lesson Progress Gauge (Green Border)
+// 5. Current Lesson Progress Gauge (Monochrome)
 const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
-  label: ' [ PRIEBEH HODINY / PRESTÁVKA ] ',
-  stroke: 'green',
+  label: ' [ PRIEBEH VYUČOVANIA ] ',
+  stroke: 'white',
   fill: 'white',
-  border: { type: 'line', fg: 'green' },
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   style: {
-    border: { fg: 'green' },
+    border: { fg: COLOR_DARK_GRAY },
   },
 });
 
-// 6. Mini Tasks Table (Cyan Border, Clean White on Black)
+// 6. Mini Tasks Table (Monochrome; orange selection when focused)
 const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   keys: true,
   interactive: true,
-  label: ' [ AKTUÁLNE ZADANIA A PÍSOMKY ] ',
-  border: { type: 'line', fg: 'cyan' },
+  label: ' [ ÚLOHY A PÍSOMKY ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
   columnSpacing: 2,
   columnWidth: [11, 10, 18, 30],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
   fg: 'white',
   selectedFg: 'black',
-  selectedBg: 'white',
+  selectedBg: COLOR_ORANGE,
   style: {
-    border: { fg: 'cyan' },
-    header: { fg: 'cyan', bold: true },
+    border: { fg: COLOR_DARK_GRAY },
+    header: { fg: 'white', bold: true },
   },
 });
 
@@ -283,10 +298,10 @@ const timetableSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: 'blue' },
-  label: ' [ OVLÁDANIE ROZVRHU ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ ROZVRH ] ',
   style: {
-    border: { fg: 'blue' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -301,17 +316,17 @@ const timetableMainBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: 'green' },
-  label: ' [ TÝŽDENNÝ ROZVRH HODÍN ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ TÝŽDENNÝ ROZVRH ] ',
   style: {
-    border: { fg: 'green' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
 });
 
 // ==============================================================================
-// TAB 3, 4, 5: EMPTY PLACEHOLDERS
+// EMPTY PLACEHOLDER HELPER
 // ==============================================================================
 
 function createEmptyTabPlaceholder(labelText) {
@@ -333,14 +348,14 @@ function createEmptyTabPlaceholder(labelText) {
     tags: true,
     align: 'center',
     valign: 'middle',
-    border: { type: 'line', fg: 'cyan' },
+    border: { type: 'line', fg: COLOR_DARK_GRAY },
     label: ` [ ${labelText} ] `,
     style: {
-      border: { fg: 'cyan' },
+      border: { fg: COLOR_DARK_GRAY },
       fg: 'white',
       bg: 'black',
     },
-    content: `{bold}{cyan-fg}${labelText}{/cyan-fg}{/bold}\n\n{white-fg}Karta je zatiaľ prázdna — bude doplnená neskôr.{/white-fg}`,
+    content: `{bold}{white-fg}${labelText}{/white-fg}{/bold}\n\n{244-fg}Zatiaľ prázdne.{/244-fg}`,
   });
 
   return container;
@@ -366,10 +381,10 @@ const gradesSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: 'blue' },
-  label: ' [ PREHĽAD & PREDMETY ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ PREDMETY ] ',
   style: {
-    border: { fg: 'blue' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -384,10 +399,10 @@ const gradesMainBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: 'green' },
-  label: ' [ ZNÁMKY A HODNOTENIE ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ ZNÁMKY ] ',
   style: {
-    border: { fg: 'green' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -413,10 +428,10 @@ const messagesSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: 'blue' },
-  label: ' [ FILTRE OZNÁMENÍ ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ FILTRE ] ',
   style: {
-    border: { fg: 'blue' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -429,10 +444,10 @@ const messagesSearchBox = blessed.box({
   width: `100%-${SIDEBAR_WIDTH}`,
   height: 3,
   tags: true,
-  border: { type: 'line', fg: 'cyan' },
-  label: ' [ VYHĽADÁVANIE SPRÁV A PREDMETOV (/ alebo f) ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ HĽADAŤ ] ',
   style: {
-    border: { fg: 'cyan' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -447,10 +462,10 @@ const messagesFeedBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: 'green' },
-  label: ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ ] ',
+  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  label: ' [ SPRÁVY ] ',
   style: {
-    border: { fg: 'green' },
+    border: { fg: COLOR_DARK_GRAY },
     fg: 'white',
     bg: 'black',
   },
@@ -482,38 +497,32 @@ function hasCardSidebar(tabIdx = activeTabIndex) {
   return tabIdx === 1 || tabIdx === 2 || tabIdx === 3;
 }
 
+function updateMonitorFocusStyles() {
+  const isMonitorCard = activeTabIndex === 0 && navFocus === 'card';
+  const ttFocused = isMonitorCard && activeWidgetIndex === 0;
+  const tasksFocused = isMonitorCard && activeWidgetIndex === 1;
+
+  timetableTable.style.border.fg = ttFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  if (timetableTable.rows && timetableTable.rows.style && timetableTable.rows.style.selected) {
+    timetableTable.rows.style.selected.bg = ttFocused ? COLOR_ORANGE : COLOR_CHARCOAL;
+    timetableTable.rows.style.selected.fg = ttFocused ? 'black' : 'white';
+  }
+
+  miniTasksTable.style.border.fg = tasksFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  if (miniTasksTable.rows && miniTasksTable.rows.style && miniTasksTable.rows.style.selected) {
+    miniTasksTable.rows.style.selected.bg = tasksFocused ? COLOR_ORANGE : COLOR_CHARCOAL;
+    miniTasksTable.rows.style.selected.fg = tasksFocused ? 'black' : 'white';
+  }
+}
+
 function updateFooter() {
-  if (hasCardSidebar(activeTabIndex)) {
-    if (navFocus === 'topbar') {
-      footerBox.setContent(
-        ' {bold}{cyan-fg}[HORNÁ LIŠTA]{/cyan-fg}{/bold}  {bold}[1-5 / ← / →]{/bold} Karty  │  {bold}[↓]{/bold} Vstúpiť do karty  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec'
-      );
-    } else if (activeTabIndex === 1) {
-      footerBox.setContent(
-        ' {bold}{yellow-fg}[ĽAVÁ LIŠTA - ROZVRH]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Voľba položky ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[← / → / Enter]{/bold} Prepínať Aktuálny/Stály  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q]{/bold} Koniec'
-      );
-    } else if (activeTabIndex === 2) {
-      footerBox.setContent(
-        ' {bold}{yellow-fg}[ĽAVÁ LIŠTA - ZNÁMKY]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Prehľad / Pochvaly / Predmety ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[← / →]{/bold} Rolovať tabuľku  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q]{/bold} Koniec'
-      );
-    } else if (activeTabIndex === 3) {
-      if (msgSubFocus === 'search') {
-        footerBox.setContent(
-          ' {bold}{yellow-fg}[VYHĽADÁVANIE AKTÍVNE]{/yellow-fg}{/bold}  {bold}[Píš text]{/bold} Hľadať v správach / predmetoch  │  {bold}[Backspace]{/bold} Zmazať znak  │  {bold}[Enter / ↓]{/bold} Do zoznamu správ  │  {bold}[↑ / Esc]{/bold} Späť hore'
-        );
-      } else if (msgSubFocus === 'filters') {
-        footerBox.setContent(
-          ' {bold}{yellow-fg}[FILTRE VĽAVO]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Pohyb ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[Space / Enter]{/bold} Začiarknuť [x]/[ ]  │  {bold}[→ / Tab]{/bold} Do zoznamu správ  │  {bold}[/]{/bold} Hľadať'
-        );
-      } else {
-        footerBox.setContent(
-          ' {bold}{green-fg}[ZOZNAM SPRÁV]{/green-fg}{/bold}  {bold}[↑ / ↓ / PgUp / PgDn]{/bold} Skrolovať správy ({bold}↑ navrchu{/bold} = do vyhľadávania)  │  {bold}[← / Tab]{/bold} Filtre vľavo  │  {bold}[/]{/bold} Hľadať  │  {bold}[r]{/bold} Obnoviť'
-        );
-      }
-    }
+  if (activeTabIndex === 3 && navFocus === 'card') {
+    footerBox.setContent(
+      ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[↑/↓]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[←/→/Tab]{/250-fg} {244-fg}Panel{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Space]{/250-fg} {244-fg}Filter{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[/]{/250-fg} {244-fg}Hľadať{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}'
+    );
   } else {
     footerBox.setContent(
-      ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie tabuľky  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec'
+      ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Šípky]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Enter]{/250-fg} {244-fg}Výber{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}'
     );
   }
 }
@@ -539,6 +548,7 @@ function switchTab(index) {
 
   updateHeader();
   updateFooter();
+  updateMonitorFocusStyles();
 
   if (activeTabIndex === 1) {
     renderTimetableCard();
@@ -575,36 +585,27 @@ function updateHeader() {
   const gpa = dashboardData.gpa || '-';
   const standing = dashboardData.standing || '-';
 
-  const standingColor = standing.includes('vyznamenan')
-    ? '{green-fg}'
-    : standing.includes('veľmi')
-    ? '{cyan-fg}'
-    : standing === 'Neprospel'
-    ? '{red-fg}'
-    : '{white-fg}';
-
   const statusBadge = isFetching
-    ? '{yellow-fg}[SYNCING...]{/yellow-fg}'
-    : '{green-fg}[ONLINE]{/green-fg}';
+    ? '{244-fg}[SYNC]{/244-fg}'
+    : '{250-fg}[ONLINE]{/250-fg}';
 
-  const isTopFocused = navFocus === 'topbar' || !hasCardSidebar(activeTabIndex);
-  headerBox.style.border.fg = isTopFocused ? 'cyan' : 'blue';
-  headerBox.setLabel(' [ EDUPAGE BTOP MONITOR - ' + school + ' ] ');
+  const isTopFocused = navFocus === 'topbar';
+  headerBox.style.border.fg = isTopFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  headerBox.setLabel(' [ EDUPAGE MONITOR - ' + school + ' ] ');
 
   const tabButtons = TAB_LABELS.map((label, idx) => {
     if (idx === activeTabIndex) {
-      return `{blue-bg}{white-fg}{bold}${label}{/bold}{/white-fg}{/blue-bg}`;
+      if (isTopFocused) {
+        return `{208-bg}{black-fg}{bold}${label}{/bold}{/black-fg}{/208-bg}`;
+      }
+      return `{238-bg}{white-fg}{bold}${label}{/bold}{/white-fg}{/238-bg}`;
     }
-    return `{cyan-fg}[${label.trim()}]{/cyan-fg}`;
+    return `{244-fg}${label.trim()}{/244-fg}`;
   }).join('   ');
 
-  const navHint = hasCardSidebar(activeTabIndex)
-    ? (isTopFocused ? '  {yellow-fg}(↓ Vstúpiť do bočného panela){/yellow-fg}' : '  {yellow-fg}(BOČNÝ PANEL AKTÍVNY │ ↑ späť hore){/yellow-fg}')
-    : '';
-
   headerBox.setContent(
-    ` {bold}POUŽÍVATEĽ:{/bold} ${user}  │  {bold}PRIEMER:{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}${standing}{/}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
-    ` {bold}KARTY:{/bold}  ${tabButtons}${navHint}`
+    ` {244-fg}POUŽÍVATEĽ:{/244-fg} {white-fg}{bold}${user}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PRIEMER:{/244-fg} {white-fg}{bold}${gpa}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PROSPECH:{/244-fg} {250-fg}${standing}{/250-fg}  {240-fg}│{/240-fg}  {244-fg}ZVONENIE:{/244-fg} {white-fg}${nextBell}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}ČAS:{/244-fg} {250-fg}${timeStr}{/250-fg}  ${statusBadge}\n` +
+    ` {244-fg}KARTY:{/244-fg}  ${tabButtons}`
   );
 }
 
@@ -873,8 +874,8 @@ function padRawLine(text, width) {
 
 function renderTimetableSidebar(live) {
   const isFocused = activeTabIndex === 1 && navFocus === 'card';
-  timetableSidebar.style.border.fg = isFocused ? 'yellow' : 'cyan';
-  timetableSidebar.setLabel(isFocused ? ' [ ĽAVÁ LIŠTA (AKTÍVNA) ] ' : ' [ ĽAVÁ LIŠTA (↓ Vstup) ] ');
+  timetableSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  timetableSidebar.setLabel(' [ ROZVRH ] ');
 
   const weekMap = getWeekDataByVariant(ttVariant);
   const dayKeys = Object.keys(weekMap).sort();
@@ -882,52 +883,51 @@ function renderTimetableSidebar(live) {
 
   const lines = [];
 
-  // 1. Live Clock Status Banner (High-contrast bright foreground on black/blue)
-  lines.push(' {bold}{cyan-fg}══ AKTUÁLNE PRÁVE TERAZ ══{/cyan-fg}{/bold}');
+  // 1. Live Clock Status Banner (Monochrome)
+  lines.push(' {244-fg}AKTUÁLNE{/244-fg}');
   if (mode === 'LESSON' && currentLesson) {
     const roomStr = currentLesson.room && currentLesson.room !== '-' ? currentLesson.room : '-';
     const hdr = ` ● ${currentLesson.period}. HODINA: ${currentLesson.subject_short || currentLesson.subject}`;
-    lines.push(` {blue-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/blue-bg}`);
-    lines.push(` {green-fg}{bold}${fitPlain(currentLesson.subject, 30)}{/bold}{/green-fg}`);
-    lines.push(` {white-fg}Čas: ${currentLesson.time} (ešte ${remMin} min){/white-fg}`);
-    lines.push(` {cyan-fg}Učebňa: ${fitPlain(roomStr, 22)}{/cyan-fg}`);
+    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {white-fg}${fitPlain(currentLesson.subject, 30)}{/white-fg}`);
+    lines.push(` {250-fg}${currentLesson.time} (${remMin} min) · ${fitPlain(roomStr, 12)}{/250-fg}`);
   } else if (mode === 'BREAK' && nextLesson) {
     const durBreak = bellBreak ? `${bellBreak.duration_min} min` : '';
     const bTitle = bellBreak ? `${bellBreak.after_period}.➔${bellBreak.before_period}.` : 'PRESTÁVKA';
     const hdr = ` ● PRESTÁVKA ${bTitle}${durBreak ? ' (' + durBreak + ')' : ''}`;
-    lines.push(` {blue-bg}{yellow-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/yellow-fg}{/blue-bg}`);
-    lines.push(` {yellow-fg}{bold}Nasleduje: ${fitPlain(nextLesson.subject, 19)}{/bold}{/yellow-fg}`);
-    lines.push(` {white-fg}Začiatok o ${nextLesson.start || '-'} (za ${remMin} min){/white-fg}`);
+    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {250-fg}Ďalej: ${fitPlain(nextLesson.subject, 22)}{/250-fg}`);
+    lines.push(` {244-fg}O ${nextLesson.start || '-'} (za ${remMin} min){/244-fg}`);
   } else if (bellPeriod) {
     const hdr = ` ● ${bellPeriod.period}. HODINA (${bellPeriod.start}-${bellPeriod.end})`;
-    lines.push(` {blue-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/blue-bg}`);
-    lines.push(' {cyan-fg}Aktuálne máš voľno / odpadla{/cyan-fg}');
+    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(' {244-fg}Voľná hodina{/244-fg}');
   } else if (bellBreak) {
     const hdr = ` ● PRESTÁVKA ${bellBreak.between}`;
-    lines.push(` {blue-bg}{yellow-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/yellow-fg}{/blue-bg}`);
-    lines.push(` {white-fg}${bellBreak.name} (${bellBreak.duration_min} min){/white-fg}`);
+    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {250-fg}${bellBreak.name} (${bellBreak.duration_min} min){/250-fg}`);
   } else if (mode === 'BEFORE' && nextLesson) {
-    lines.push(' {cyan-fg}{bold}● PRED VYUČOVANÍM{/bold}{/cyan-fg}');
-    lines.push(` {white-fg}1. hod o ${nextLesson.start || '-'} (za ${remMin} min){/white-fg}`);
+    lines.push(' {white-fg}{bold}● PRED VYUČOVANÍM{/bold}{/white-fg}');
+    lines.push(` {244-fg}1. hod o ${nextLesson.start || '-'} (za ${remMin} min){/244-fg}`);
   } else {
-    lines.push(' {cyan-fg}● MIMO VYUČOVANIA (Voľno){/cyan-fg}');
+    lines.push(' {244-fg}● MIMO VYUČOVANIA{/244-fg}');
   }
 
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(' {bold}{white-fg}MENU ZOBRAZENIA:{/white-fg}{/bold}');
+  lines.push('{240-fg}────────────────────────────────{/240-fg}');
+  lines.push(' {244-fg}ZOBRAZENIE{/244-fg}');
 
-  // 2. Interactive Sidebar Menu Items (High contrast: white-on-blue cursor)
+  // 2. Interactive Sidebar Menu Items (Orange ONLY on controlled item)
   SIDEBAR_ITEMS.forEach((item, idx) => {
     const cursorHere = isFocused && sidebarCursor === idx;
     const isDay = typeof item.dayIdx === 'number';
     const isToday = isDay && item.dayIdx === todayIdx;
 
     if (idx === 6) {
-      lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-      lines.push(' {bold}{white-fg}TYP ROZVRHU (←/→/Enter):{/white-fg}{/bold}');
+      lines.push('{240-fg}────────────────────────────────{/240-fg}');
+      lines.push(' {244-fg}REŽIM ROZVRHU{/244-fg}');
     }
     if (idx === 7) {
-      lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
+      lines.push('{240-fg}────────────────────────────────{/240-fg}');
     }
 
     let active = false;
@@ -938,13 +938,12 @@ function renderTimetableSidebar(live) {
 
     if (item.id === 'TYP_TOGGLE') {
       const modeStr = ttVariant === 'ACTUAL'
-        ? ' ◉ Aktuálny  ○ Stály'
-        : ' ○ Aktuálny  ◉ Stály';
+        ? ' ◉ Aktuálny   ○ Stály'
+        : ' ○ Aktuálny   ◉ Stály';
       if (cursorHere) {
-        lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(modeStr, 32)}{/bold}{/white-fg}{/blue-bg}`);
+        lines.push(`{208-bg}{black-fg}{bold}${padRawLine(modeStr, 32)}{/bold}{/black-fg}{/208-bg}`);
       } else {
-        const col = ttVariant === 'ACTUAL' ? 'green-fg' : 'yellow-fg';
-        lines.push(`{${col}}{bold}${padRawLine(modeStr, 32)}{/bold}{/${col}}`);
+        lines.push(`{white-fg}${padRawLine(modeStr, 32)}{/white-fg}`);
       }
       return;
     }
@@ -955,26 +954,25 @@ function renderTimetableSidebar(live) {
     let formattedLine;
     if (isDay) {
       const branch = item.dayIdx === 4 ? '└─' : '├─';
-      formattedLine = active ? ` ▶ ${branch} ${rawText}` : `   ${branch} ${rawText}`;
+      formattedLine = active ? ` ▸ ${branch} ${rawText}` : `   ${branch} ${rawText}`;
     } else {
-      formattedLine = active ? ` ▶ ${rawText}` : `   ${rawText}`;
+      formattedLine = active ? ` ▸ ${rawText}` : `   ${rawText}`;
     }
 
     if (cursorHere) {
-      lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/white-fg}{/blue-bg}`);
+      lines.push(`{208-bg}{black-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      const activeCol = item.id === 'PRESTAVKY' ? 'yellow-fg' : 'green-fg';
-      lines.push(`{${activeCol}}{bold}${padRawLine(formattedLine, 32)}{/bold}{/${activeCol}}`);
+      lines.push(`{white-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/white-fg}`);
     } else if (isToday) {
-      lines.push(`{cyan-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/cyan-fg}`);
+      lines.push(`{250-fg}${padRawLine(formattedLine, 32)}{/250-fg}`);
     } else {
-      lines.push(`{white-fg}${padRawLine(formattedLine, 32)}{/white-fg}`);
+      lines.push(`{244-fg}${padRawLine(formattedLine, 32)}{/244-fg}`);
     }
   });
 
-  // 3. Live Compact Bell Timeline (Always highlights active period or break with high contrast)
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(' {bold}{white-fg}DNES ZVONENIA (HOD/PREST.):{/white-fg}{/bold}');
+  // 3. Live Compact Bell Timeline (Monochrome)
+  lines.push('{240-fg}────────────────────────────────{/240-fg}');
+  lines.push(' {244-fg}DNES ZVONENIA{/244-fg}');
   const periods = getPeriodsSchedule();
   const breaks = getBreaksSchedule();
   const todayKey = todayIdx >= 0 ? dayKeys[todayIdx] : null;
@@ -988,9 +986,9 @@ function renderTimetableSidebar(live) {
       : '---';
     const pLine = `${p.period}. ${p.start}-${p.end} ${subjTxt}`;
     if (isNowPeriod) {
-      lines.push(` {blue-bg}{white-fg}{bold}${padRawLine('▶ ' + pLine + ' [TERAZ]', 30)}{/bold}{/white-fg}{/blue-bg}`);
+      lines.push(` {236-bg}{white-fg}{bold}${padRawLine('▸ ' + pLine + ' [TERAZ]', 30)}{/bold}{/white-fg}{/236-bg}`);
     } else {
-      const col = les && les.is_cancelled ? 'red-fg' : (les ? 'white-fg' : 'cyan-fg');
+      const col = les ? '250-fg' : '240-fg';
       lines.push(` {${col}}  ${fitPlain(pLine, 28)}{/${col}}`);
     }
 
@@ -998,8 +996,8 @@ function renderTimetableSidebar(live) {
     if (br) {
       const isNowBreak = bellBreak && bellBreak.id === br.id;
       if (isNowBreak) {
-        const bText = `▶ PREST. ${br.start}-${br.end} (${br.duration_min}m)`;
-        lines.push(` {blue-bg}{yellow-fg}{bold}${padRawLine(bText, 30)}{/bold}{/yellow-fg}{/blue-bg}`);
+        const bText = `▸ PREST. ${br.start}-${br.end} (${br.duration_min}m)`;
+        lines.push(` {236-bg}{white-fg}{bold}${padRawLine(bText, 30)}{/bold}{/white-fg}{/236-bg}`);
       }
     }
   });
@@ -1020,18 +1018,17 @@ function renderWeeklyGrid(live) {
   const compactMode = colW < 11;
 
   const variantBanner = ttVariant === 'ACTUAL'
-    ? '{green-fg}{bold}REŽIM: AKTUÁLNY ROZVRH (vrátane zmien a odpadnutí){/bold}{/green-fg}'
-    : '{yellow-fg}{bold}REŽIM: STACIONÁRNY ROZVRH (stály základný rozvrh bez zmien){/bold}{/yellow-fg}';
+    ? '{white-fg}{bold}AKTUÁLNY ROZVRH{/bold}{/white-fg}'
+    : '{250-fg}{bold}STACIONÁRNY ROZVRH{/bold}{/250-fg}';
 
   const liveNote = bellBreak
-    ? `{yellow-fg}{bold}Prebieha prestávka ${bellBreak.between} (${bellBreak.start}-${bellBreak.end}){/bold}{/yellow-fg}`
+    ? `{250-fg}Prestávka ${bellBreak.between} (${bellBreak.start}-${bellBreak.end}){/250-fg}`
     : (bellPeriod
-      ? `{green-fg}{bold}Aktuálne zvonenie: ${bellPeriod.period}. hodina (${bellPeriod.start}-${bellPeriod.end}){/bold}{/green-fg}`
-      : '{cyan-fg}Mimo vyučovania{/cyan-fg}');
+      ? `{white-fg}${bellPeriod.period}. hodina (${bellPeriod.start}-${bellPeriod.end}){/white-fg}`
+      : '{244-fg}Mimo vyučovania{/244-fg}');
 
   const out = [];
-  out.push(` ${variantBanner}   │   ${liveNote}`);
-  out.push(' {white-fg}Bunka: [Skratka] / Čas od-do / Trieda (Učebňa) / Učiteľ   │   Legenda: {red-fg}{bold}ODP=Odpadla{/bold}{/red-fg} {yellow-fg}{bold}ZMN=Zmena{/bold}{/yellow-fg} {cyan-fg}{bold}UDL=Udalosť{/bold}{/cyan-fg}{/white-fg}');
+  out.push(` ${variantBanner}   {240-fg}│{/240-fg}   ${liveNote}`);
 
   const hLine = (left, mid, right, fill = '─') => {
     const segs = [fill.repeat(dayColW)];
@@ -1040,24 +1037,24 @@ function renderWeeklyGrid(live) {
   };
 
   // Header row (Period number + time)
-  out.push(`{cyan-fg}${hLine('┌', '┬', '┐')}{/cyan-fg}`);
-  let hdr1 = '{cyan-fg}│{/cyan-fg}' + `{bold}{white-fg}${padVis('DEŇ', dayColW, 'center')}{/white-fg}{/bold}`;
-  let hdr2 = '{cyan-fg}│{/cyan-fg}' + ' '.repeat(dayColW);
+  out.push(`{240-fg}${hLine('┌', '┬', '┐')}{/240-fg}`);
+  let hdr1 = '{240-fg}│{/240-fg}' + `{bold}{250-fg}${padVis('DEŇ', dayColW, 'center')}{/250-fg}{/bold}`;
+  let hdr2 = '{240-fg}│{/240-fg}' + ' '.repeat(dayColW);
 
   periods.forEach((p) => {
     const isNowP = bellPeriod && String(bellPeriod.period) === String(p.period);
     const pLabel = compactMode ? `${p.period}. HOD` : `${p.period}. HODINA`;
     const tLabel = compactMode ? `${p.start.replace(/^0/, '')}-${p.end.replace(/^0/, '')}` : `${p.start}-${p.end}`;
-    const hdrTag = isNowP ? '{blue-bg}{white-fg}{bold}' : '{cyan-fg}{bold}';
-    const timeTag = isNowP ? '{blue-bg}{yellow-fg}{bold}' : '{white-fg}';
-    hdr1 += '{cyan-fg}│{/cyan-fg}' + `${hdrTag}${padVis(pLabel, colW, 'center')}{/}`;
-    hdr2 += '{cyan-fg}│{/cyan-fg}' + `${timeTag}${padVis(tLabel, colW, 'center')}{/}`;
+    const hdrTag = isNowP ? '{238-bg}{white-fg}{bold}' : '{white-fg}{bold}';
+    const timeTag = isNowP ? '{238-bg}{250-fg}' : '{244-fg}';
+    hdr1 += '{240-fg}│{/240-fg}' + `${hdrTag}${padVis(pLabel, colW, 'center')}{/}`;
+    hdr2 += '{240-fg}│{/240-fg}' + `${timeTag}${padVis(tLabel, colW, 'center')}{/}`;
   });
-  hdr1 += '{cyan-fg}│{/cyan-fg}';
-  hdr2 += '{cyan-fg}│{/cyan-fg}';
+  hdr1 += '{240-fg}│{/240-fg}';
+  hdr2 += '{240-fg}│{/240-fg}';
   out.push(hdr1);
   out.push(hdr2);
-  out.push(`{cyan-fg}${hLine('├', '┼', '┤')}{/cyan-fg}`);
+  out.push(`{240-fg}${hLine('├', '┼', '┤')}{/240-fg}`);
 
   // 5 Day Rows
   const defaultDayNames = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok'];
@@ -1075,12 +1072,12 @@ function renderWeeklyGrid(live) {
     const lineCount = fourLineCells ? 4 : 3;
     const rowLines = Array.from({ length: lineCount }, () => '');
 
-    // Day column (Crisp white-on-blue for today)
-    const dayTagStart = isToday ? '{blue-bg}{white-fg}{bold}' : '{white-fg}{bold}';
-    rowLines[0] = `{cyan-fg}│{/cyan-fg}${dayTagStart}${padVis(dayName.toUpperCase(), dayColW, 'center')}{/}`;
-    rowLines[1] = `{cyan-fg}│{/cyan-fg}${isToday ? '{yellow-fg}{bold}' : '{cyan-fg}'}${padVis(isToday ? '[DNES]' : dateShort, dayColW, 'center')}{/}`;
-    if (lineCount >= 3) rowLines[2] = `{cyan-fg}│{/cyan-fg}${isToday && dateShort ? '{white-fg}' + padVis(dateShort, dayColW, 'center') + '{/}' : ' '.repeat(dayColW)}`;
-    if (lineCount >= 4) rowLines[3] = `{cyan-fg}│{/cyan-fg}${' '.repeat(dayColW)}`;
+    // Day column (Monochrome)
+    const dayTagStart = isToday ? '{238-bg}{white-fg}{bold}' : '{250-fg}{bold}';
+    rowLines[0] = `{240-fg}│{/240-fg}${dayTagStart}${padVis(dayName.toUpperCase(), dayColW, 'center')}{/}`;
+    rowLines[1] = `{240-fg}│{/240-fg}${isToday ? '{white-fg}{bold}' : '{244-fg}'}${padVis(isToday ? '[DNES]' : dateShort, dayColW, 'center')}{/}`;
+    if (lineCount >= 3) rowLines[2] = `{240-fg}│{/240-fg}${isToday && dateShort ? '{244-fg}' + padVis(dateShort, dayColW, 'center') + '{/}' : ' '.repeat(dayColW)}`;
+    if (lineCount >= 4) rowLines[3] = `{240-fg}│{/240-fg}${' '.repeat(dayColW)}`;
 
     // 8 Period cells
     for (let pNum = 1; pNum <= 8; pNum++) {
@@ -1089,11 +1086,11 @@ function renderWeeklyGrid(live) {
       const isNowCell = isToday && bellPeriod && String(bellPeriod.period) === String(pNum);
       const isNextAfterBreak = isToday && bellBreak && String(bellBreak.before_period) === String(pNum);
 
-      const sep = isNowCell ? '{yellow-fg}│{/yellow-fg}' : (isNextAfterBreak ? '{yellow-fg}│{/yellow-fg}' : '{cyan-fg}│{/cyan-fg}');
+      const sep = '{240-fg}│{/240-fg}';
 
       if (!les) {
-        rowLines[0] += sep + (isNowCell ? `{blue-bg}{white-fg}{bold}${padVis('VOĽNO', colW, 'center')}{/}` : ' '.repeat(colW));
-        rowLines[1] += sep + `{cyan-fg}${padVis('-', colW, 'center')}{/cyan-fg}`;
+        rowLines[0] += sep + (isNowCell ? `{236-bg}{white-fg}${padVis('VOĽNO', colW, 'center')}{/}` : ' '.repeat(colW));
+        rowLines[1] += sep + `{240-fg}${padVis('·', colW, 'center')}{/240-fg}`;
         if (lineCount >= 3) rowLines[2] += sep + ' '.repeat(colW);
         if (lineCount >= 4) rowLines[3] += sep + ' '.repeat(colW);
         continue;
@@ -1104,25 +1101,25 @@ function renderWeeklyGrid(live) {
       let titleTagStart = '{white-fg}{bold}';
       let titleTagEnd = '{/bold}{/white-fg}';
       if (isNowCell && !les.is_cancelled) {
-        sTitle = `▶ ${sTitle} ◀`;
-        titleTagStart = '{blue-bg}{white-fg}{bold}';
-        titleTagEnd = '{/bold}{/white-fg}{/blue-bg}';
+        sTitle = `▸ ${sTitle} ◂`;
+        titleTagStart = '{238-bg}{white-fg}{bold}';
+        titleTagEnd = '{/bold}{/white-fg}{/238-bg}';
       } else if (les.is_cancelled) {
         sTitle = `${sTitle} [ODP]`;
-        titleTagStart = '{red-fg}{bold}';
-        titleTagEnd = '{/bold}{/red-fg}';
+        titleTagStart = '{240-fg}';
+        titleTagEnd = '{/240-fg}';
       } else if (les.is_changed) {
         sTitle = `${sTitle} [ZMN]`;
-        titleTagStart = '{yellow-fg}{bold}';
-        titleTagEnd = '{/bold}{/yellow-fg}';
+        titleTagStart = '{250-fg}{bold}';
+        titleTagEnd = '{/bold}{/250-fg}';
       } else if (les.is_event) {
         sTitle = `${sTitle} [UDL]`;
-        titleTagStart = '{cyan-fg}{bold}';
-        titleTagEnd = '{/bold}{/cyan-fg}';
+        titleTagStart = '{250-fg}{bold}';
+        titleTagEnd = '{/bold}{/250-fg}';
       } else if (isNextAfterBreak && mode === 'BREAK') {
         sTitle = `> ${sTitle}`;
-        titleTagStart = '{yellow-fg}{bold}';
-        titleTagEnd = '{/bold}{/yellow-fg}';
+        titleTagStart = '{white-fg}{bold}';
+        titleTagEnd = '{/bold}{/white-fg}';
       }
 
       // Line 2: Čas (od-do)
@@ -1137,9 +1134,9 @@ function renderWeeklyGrid(live) {
       // Line 4: Učiteľ
       const tcTxt = les.teacher_short && les.teacher_short !== '-' ? les.teacher_short : (les.teacher || '-');
 
-      const timeCol = les.is_cancelled ? '{red-fg}' : '{cyan-fg}';
-      const clsCol = les.is_cancelled ? '{red-fg}' : '{white-fg}';
-      const tcCol = les.is_cancelled ? '{red-fg}' : '{green-fg}';
+      const timeCol = les.is_cancelled ? '{240-fg}' : '{244-fg}';
+      const clsCol = les.is_cancelled ? '{240-fg}' : '{250-fg}';
+      const tcCol = les.is_cancelled ? '{240-fg}' : '{244-fg}';
 
       if (lineCount === 4) {
         rowLines[0] += sep + `${titleTagStart}${padVis(sTitle, colW, 'center')}${titleTagEnd}`;
@@ -1153,8 +1150,8 @@ function renderWeeklyGrid(live) {
       }
     }
 
-    rowLines.forEach((ln) => out.push(ln + '{cyan-fg}│{/cyan-fg}'));
-    out.push(`{cyan-fg}${dIdx < 4 ? hLine('├', '┼', '┤') : hLine('└', '┴', '┘')}{/cyan-fg}`);
+    rowLines.forEach((ln) => out.push(ln + '{240-fg}│{/240-fg}'));
+    out.push(`{240-fg}${dIdx < 4 ? hLine('├', '┼', '┤') : hLine('└', '┴', '┘')}{/240-fg}`);
   }
 
   timetableMainBox.setLabel(` [ ROZVRH HODÍN: CELÝ TÝŽDEŇ (${ttVariant === 'ACTUAL' ? 'AKTUÁLNY' : 'STACIONÁRNY'}) ] `);
@@ -1193,87 +1190,87 @@ function renderSingleDayView(dayIndex, live) {
   ].join(m) + r;
 
   const variantBanner = ttVariant === 'ACTUAL'
-    ? '{green-fg}{bold}AKTUÁLNY ROZVRH (zmeny a odpadnutia){/bold}{/green-fg}'
-    : '{yellow-fg}{bold}STACIONÁRNY ROZVRH (stály bez zmien){/bold}{/yellow-fg}';
+    ? '{white-fg}AKTUÁLNY{/white-fg}'
+    : '{250-fg}STACIONÁRNY{/250-fg}';
 
   const lines = [];
-  lines.push(` {bold}{cyan-fg}${dayName.toUpperCase()} ${dateStr}{/cyan-fg}${isToday ? ' {blue-bg}{white-fg} DNES {/}' : ''}{/bold}   │   Režim: ${variantBanner}`);
-  lines.push(`{cyan-fg}${borderLine('┌', '┬', '┐')}{/cyan-fg}`);
+  lines.push(` {bold}{white-fg}${dayName.toUpperCase()} ${dateStr}{/white-fg}${isToday ? ' {238-bg}{white-fg} DNES {/}' : ''}{/bold}   {240-fg}│{/240-fg}   {244-fg}Režim:{/244-fg} ${variantBanner}`);
+  lines.push(`{240-fg}${borderLine('┌', '┬', '┐')}{/240-fg}`);
   lines.push(
-    '{cyan-fg}│{/cyan-fg}' +
-    `{bold}{cyan-fg}${padVis('HOD', wH, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('ČAS (OD-DO)', wTime, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('PREDMET / UDALOSŤ', wSubj)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('TRIEDA / SK.', wCls)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('UČEBŇA', wRoom)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('STAV', wStat, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('HOD', wH, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('TRIEDA', wCls)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UČEBŇA', wRoom)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('STAV', wStat, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  lines.push(`{cyan-fg}${borderLine('├', '┼', '┤')}{/cyan-fg}`);
+  lines.push(`{240-fg}${borderLine('├', '┼', '┤')}{/240-fg}`);
 
   periods.forEach((p, idx) => {
     const les = lessons.find((l) => String(l.period) === String(p.period));
     const isNow = isToday && live.bellPeriod && String(live.bellPeriod.period) === String(p.period);
 
     if (!les) {
-      const rowColor = isNow ? '{yellow-fg}{bold}' : '{cyan-fg}';
+      const rowColor = isNow ? '{white-fg}{bold}' : '{240-fg}';
       lines.push(
-        '{cyan-fg}│{/cyan-fg}' +
-        `${rowColor}${padVis(p.period + '.', wH, 'center')}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis(`${p.start}-${p.end}`, wTime, 'center')}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis('-', wShort, 'center')}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis('Voľná hodina', wSubj)}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis('-', wCls)}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis('-', wRoom)}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis('-', wTeach)}{/}{cyan-fg}│{/cyan-fg}` +
-        `${rowColor}${padVis(isNow ? '>> TERAZ VOĽNO' : 'VOĽNO', wStat, 'center')}{/}{cyan-fg}│{/cyan-fg}`
+        '{240-fg}│{/240-fg}' +
+        `${rowColor}${padVis(p.period + '.', wH, 'center')}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis(`${p.start}-${p.end}`, wTime, 'center')}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis('-', wShort, 'center')}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis('Voľná hodina', wSubj)}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis('-', wCls)}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis('-', wRoom)}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis('-', wTeach)}{/}{240-fg}│{/240-fg}` +
+        `${rowColor}${padVis(isNow ? 'TERAZ VOĽNO' : 'VOĽNO', wStat, 'center')}{/}{240-fg}│{/240-fg}`
       );
     } else {
       const clsGrp = les.group ? `${les.class_name} (${les.group})` : (les.class_name || '-');
       let stText = les.status || 'PLÁN';
       let fgCol = 'white-fg';
       if (isNow && !les.is_cancelled) {
-        stText = `>> TERAZ (${live.pct}%)`;
-        fgCol = 'green-fg';
+        stText = `TERAZ (${live.pct}%)`;
+        fgCol = 'white-fg';
       } else if (les.is_cancelled) {
         stText = 'ODPADLA';
-        fgCol = 'red-fg';
+        fgCol = '240-fg';
       } else if (les.is_changed) {
         stText = 'ZMENA';
-        fgCol = 'yellow-fg';
+        fgCol = '250-fg';
       } else if (les.is_event) {
         stText = 'UDALOSŤ';
-        fgCol = 'cyan-fg';
+        fgCol = '250-fg';
       }
 
-      const rowPrefix = isNow && !les.is_cancelled ? '{blue-bg}{white-fg}{bold}' : `{${fgCol}}`;
+      const rowPrefix = isNow && !les.is_cancelled ? '{238-bg}{white-fg}{bold}' : `{${fgCol}}`;
       const rowEnd = '{/}';
       lines.push(
-        '{cyan-fg}│{/cyan-fg}' +
-        `${rowPrefix}${padVis(p.period + '.', wH, 'center')}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(les.time || `${p.start}-${p.end}`, wTime, 'center')}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(les.subject_short || '-', wShort, 'center')}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(les.subject || '-', wSubj)}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(clsGrp, wCls)}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(les.room || '-', wRoom)}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(les.teacher || '-', wTeach)}${rowEnd}{cyan-fg}│{/cyan-fg}` +
-        `${rowPrefix}${padVis(stText, wStat, 'center')}${rowEnd}{cyan-fg}│{/cyan-fg}`
+        '{240-fg}│{/240-fg}' +
+        `${rowPrefix}${padVis(p.period + '.', wH, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(les.time || `${p.start}-${p.end}`, wTime, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(les.subject_short || '-', wShort, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(les.subject || '-', wSubj)}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(clsGrp, wCls)}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(les.room || '-', wRoom)}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(les.teacher || '-', wTeach)}${rowEnd}{240-fg}│{/240-fg}` +
+        `${rowPrefix}${padVis(stText, wStat, 'center')}${rowEnd}{240-fg}│{/240-fg}`
       );
     }
 
     const br = breaks[idx];
     if (br) {
       const isNowBreak = isToday && live.bellBreak && live.bellBreak.id === br.id;
-      const brSummary = `   ··· Prestávka ${br.between}: ${br.start} - ${br.end} (${br.duration_min} min · ${br.name}) ${isNowBreak ? '◀ PRÁVE PREBIEHA!' : ''}···`;
-      const brTag = isNowBreak ? '{blue-bg}{yellow-fg}{bold}' : '{cyan-fg}';
-      lines.push(`{cyan-fg}│{/cyan-fg}${brTag}${padVis(brSummary, innerW)}{/}{cyan-fg}│{/cyan-fg}`);
+      const brSummary = `   · Prestávka ${br.between}: ${br.start} - ${br.end} (${br.duration_min} min · ${br.name}) ${isNowBreak ? '◀ PREBIEHA' : ''}`;
+      const brTag = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{244-fg}';
+      lines.push(`{240-fg}│{/240-fg}${brTag}${padVis(brSummary, innerW)}{/}{240-fg}│{/240-fg}`);
     }
   });
 
-  lines.push(`{cyan-fg}${borderLine('└', '┴', '┘')}{/cyan-fg}`);
+  lines.push(`{240-fg}${borderLine('└', '┴', '┘')}{/240-fg}`);
 
-  timetableMainBox.setLabel(` [ ROZVRH: ${dayName.toUpperCase()} (${ttVariant === 'ACTUAL' ? 'AKTUÁLNY' : 'STACIONÁRNY'}) ] `);
+  timetableMainBox.setLabel(` [ ROZVRH: ${dayName.toUpperCase()} ] `);
   timetableMainBox.setContent(lines.join('\n'));
 }
 
@@ -1283,63 +1280,48 @@ function renderBreaksView(live) {
   const innerW = Math.max(76, boxWidth - 4);
 
   const wId = 6;
-  const wBetw = 18;
-  const wTime = 15;
-  const wDur = 10;
-  const wType = 22;
-  const wBar = Math.max(14, innerW - (wId + wBetw + wTime + wDur + wType + 7));
+  const wBetw = 22;
+  const wTime = 18;
+  const wDur = 12;
+  const wType = Math.max(20, innerW - (wId + wBetw + wTime + wDur + 6));
 
   const hLine = (l, m, r) => l + [
     '─'.repeat(wId), '─'.repeat(wBetw), '─'.repeat(wTime),
-    '─'.repeat(wDur), '─'.repeat(wType), '─'.repeat(wBar),
+    '─'.repeat(wDur), '─'.repeat(wType),
   ].join(m) + r;
 
   const lines = [];
-  lines.push(' {bold}{yellow-fg}PREHĽAD ŠKOLSKÝCH PRESTÁVOK A ZVONENÍ{/yellow-fg}{/bold}   │   {white-fg}Časy vychádzajú z oficiálneho rozpisu zvonení školy.{/white-fg}');
-  lines.push('');
-  lines.push(`{yellow-fg}${hLine('┌', '┬', '┐')}{/yellow-fg}`);
+  lines.push(`{240-fg}${hLine('┌', '┬', '┐')}{/240-fg}`);
   lines.push(
-    '{yellow-fg}│{/yellow-fg}' +
-    `{bold}{cyan-fg}${padVis('#', wId, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('MEDZI HODINAMI', wBetw, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('ČAS PRESTÁVKY', wTime, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('DĹŽKA', wDur, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('TYP PRESTÁVKY', wType)}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('VIZUALIZÁCIA / STAV', wBar)}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('#', wId, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('MEDZI HODINAMI', wBetw, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('TRVANIE', wDur, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('NÁZOV', wType)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  lines.push(`{yellow-fg}${hLine('├', '┼', '┤')}{/yellow-fg}`);
+  lines.push(`{240-fg}${hLine('├', '┼', '┤')}{/240-fg}`);
 
   breaks.forEach((b, i) => {
     const isNowBreak = live.bellBreak && live.bellBreak.id === b.id;
-    const barUnits = Math.max(2, Math.min(18, Math.round((b.duration_min / 30) * 18)));
-    const barStr = '█'.repeat(barUnits);
-    const col = b.duration_min >= 25 ? 'magenta-fg' : (b.duration_min >= 15 ? 'yellow-fg' : (b.duration_min >= 10 ? 'cyan-fg' : 'green-fg'));
-    const statusLabel = isNowBreak ? `${barStr} ▶ PRÁVE PREBIEHA` : `${barStr}`;
-    const wrapStart = isNowBreak ? '{blue-bg}{yellow-fg}{bold}' : '{white-fg}';
+    const wrapStart = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{white-fg}';
+    const mutedStart = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{250-fg}';
     const wrapEnd = '{/}';
+    const typeLabel = isNowBreak ? `${b.name}  [PRÁVE PREBIEHA]` : b.name;
 
     lines.push(
-      '{yellow-fg}│{/yellow-fg}' +
-      `${wrapStart}${padVis(`${i + 1}.`, wId, 'center')}${wrapEnd}{yellow-fg}│{/yellow-fg}` +
-      `${wrapStart}${padVis(b.between, wBetw, 'center')}${wrapEnd}{yellow-fg}│{/yellow-fg}` +
-      `${wrapStart}${padVis(`${b.start} - ${b.end}`, wTime, 'center')}${wrapEnd}{yellow-fg}│{/yellow-fg}` +
-      `${isNowBreak ? wrapStart : `{${col}}{bold}`}${padVis(`${b.duration_min} min`, wDur, 'center')}${wrapEnd}{yellow-fg}│{/yellow-fg}` +
-      `${isNowBreak ? wrapStart : `{${col}}`}${padVis(b.name, wType)}${wrapEnd}{yellow-fg}│{/yellow-fg}` +
-      `${isNowBreak ? wrapStart : `{${col}}`}${padVis(statusLabel, wBar)}${wrapEnd}{yellow-fg}│{/yellow-fg}`
+      '{240-fg}│{/240-fg}' +
+      `${mutedStart}${padVis(`${i + 1}.`, wId, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
+      `${wrapStart}${padVis(b.between, wBetw, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
+      `${mutedStart}${padVis(`${b.start} - ${b.end}`, wTime, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
+      `${wrapStart}{bold}${padVis(`${b.duration_min} min`, wDur, 'center')}{/bold}${wrapEnd}{240-fg}│{/240-fg}` +
+      `${mutedStart}${padVis(typeLabel, wType)}${wrapEnd}{240-fg}│{/240-fg}`
     );
   });
 
-  lines.push(`{yellow-fg}${hLine('└', '┴', '┘')}{/yellow-fg}`);
-  lines.push('');
-  if (live.bellBreak) {
-    lines.push(` {blue-bg}{yellow-fg}{bold} ● AKTUÁLNA PRESTÁVKA: ${live.bellBreak.between} (${live.bellBreak.start} - ${live.bellBreak.end}, ${live.bellBreak.duration_min} min) {/}`);
-  } else if (live.bellPeriod) {
-    lines.push(` {cyan-fg}{bold}● Momentálne prebieha ${live.bellPeriod.period}. vyučovacia hodina (${live.bellPeriod.start} - ${live.bellPeriod.end}).{/bold}{/cyan-fg}`);
-  } else {
-    lines.push(' {white-fg}● Momentálne je mimo času školských prestávok.{/white-fg}');
-  }
+  lines.push(`{240-fg}${hLine('└', '┴', '┘')}{/240-fg}`);
 
-  timetableMainBox.setLabel(' [ PRESTÁVKY A ROZPIS ZVONENIA ] ');
+  timetableMainBox.setLabel(' [ PRESTÁVKY ] ');
   timetableMainBox.setContent(lines.join('\n'));
 }
 
@@ -1365,20 +1347,9 @@ let gradesCursor = 0; // 0 = PREHĽAD, 1 = POCHVALY/POZNÁMKY, 2..N = Konkrétny
 function getGradeColorTag(val) {
   const n = parseFloat(String(val).replace(',', '.'));
   if (!isNaN(n)) {
-    if (n < 1.5) return 'green-fg';
-    if (n < 2.5) return 'cyan-fg';
-    if (n < 3.5) return 'yellow-fg';
-    if (n < 4.5) return 'magenta-fg';
-    return 'red-fg';
-  }
-  const s = String(val || '');
-  if (s.endsWith('%')) {
-    const pct = parseFloat(s);
-    if (pct >= 90) return 'green-fg';
-    if (pct >= 75) return 'cyan-fg';
-    if (pct >= 60) return 'yellow-fg';
-    if (pct >= 50) return 'magenta-fg';
-    return 'red-fg';
+    if (n <= 2.0) return 'white-fg';
+    if (n <= 3.5) return '250-fg';
+    return '244-fg';
   }
   return 'white-fg';
 }
@@ -1387,7 +1358,7 @@ function getGradesSidebarItems() {
   const subjs = dashboardData.subjects || [];
   const comms = dashboardData.commendations || [];
   const items = [
-    { id: 'OVERVIEW', type: 'OVERVIEW', label: 'PREHĽAD (Všetky známky)' },
+    { id: 'OVERVIEW', type: 'OVERVIEW', label: 'PREHĽAD' },
     { id: 'COMMENDATIONS', type: 'COMMENDATIONS', label: `POCHVALY / POZNÁMKY (${comms.length})` },
   ];
   subjs.forEach((s, idx) => {
@@ -1407,8 +1378,8 @@ function getGradesSidebarItems() {
 
 function renderGradesSidebar() {
   const isFocused = activeTabIndex === 2 && navFocus === 'card';
-  gradesSidebar.style.border.fg = isFocused ? 'yellow' : 'cyan';
-  gradesSidebar.setLabel(isFocused ? ' [ ĽAVÁ LIŠTA (AKTÍVNA) ] ' : ' [ ĽAVÁ LIŠTA (↓ Vstup) ] ');
+  gradesSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  gradesSidebar.setLabel(' [ ZNÁMKY ] ');
 
   const items = getGradesSidebarItems();
   if (gradesCursor >= items.length) gradesCursor = Math.max(0, items.length - 1);
@@ -1417,39 +1388,36 @@ function renderGradesSidebar() {
   const standing = dashboardData.standing || '-';
   const totalMarks = dashboardData.total_marks || 0;
   const subjCount = (dashboardData.subjects || []).length;
-  const commCount = (dashboardData.commendations || []).length;
 
   const lines = [];
-  lines.push(' {bold}{cyan-fg}══ ŠTUDIJNÝ SÚHRN (SR) ══{/cyan-fg}{/bold}');
-  lines.push(` {blue-bg}{white-fg}{bold}${padRawLine(` ● CELKOVÝ PRIEMER: ${gpa}`, 30)}{/bold}{/white-fg}{/blue-bg}`);
-  lines.push(` {green-fg}{bold}${fitPlain(standing, 30)}{/bold}{/green-fg}`);
-  lines.push(` {white-fg}Známok: ${totalMarks}  │  Predmetov: ${subjCount}{/white-fg}`);
-  lines.push(` {cyan-fg}Pochvaly / Poznámky: ${commCount}{/cyan-fg}`);
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(' {bold}{white-fg}HLAVNÉ ZÁLOŽKY:{/white-fg}{/bold}');
+  lines.push(' {244-fg}SÚHRN{/244-fg}');
+  lines.push(` {236-bg}{white-fg}{bold}${padRawLine(` ● PRIEMER: ${gpa}`, 30)}{/bold}{/white-fg}{/236-bg}`);
+  lines.push(` {250-fg}${fitPlain(standing, 30)}{/250-fg}`);
+  lines.push(` {244-fg}Známok: ${totalMarks}  ·  Predmetov: ${subjCount}{/244-fg}`);
+  lines.push('{240-fg}────────────────────────────────{/240-fg}');
+  lines.push(' {244-fg}ZOBRAZENIE{/244-fg}');
 
   // Render fixed top 2 items (OVERVIEW and COMMENDATIONS)
   for (let idx = 0; idx < Math.min(2, items.length); idx++) {
     const it = items[idx];
     const cursorHere = isFocused && gradesCursor === idx;
     const active = gradesCursor === idx;
-    const text = `${active ? ' ▶ ' : '   '}${it.label}`;
+    const text = `${active ? ' ▸ ' : '   '}${it.label}`;
     if (cursorHere) {
-      lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(text, 32)}{/bold}{/white-fg}{/blue-bg}`);
+      lines.push(`{208-bg}{black-fg}{bold}${padRawLine(text, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      const col = idx === 1 ? 'yellow-fg' : 'green-fg';
-      lines.push(`{${col}}{bold}${padRawLine(text, 32)}{/bold}{/${col}}`);
+      lines.push(`{white-fg}{bold}${padRawLine(text, 32)}{/bold}{/white-fg}`);
     } else {
-      lines.push(`{white-fg}${padRawLine(text, 32)}{/white-fg}`);
+      lines.push(`{244-fg}${padRawLine(text, 32)}{/244-fg}`);
     }
   }
 
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(` {bold}{white-fg}PREDMETY (${subjCount}) [↑/↓ Výber]:{/white-fg}{/bold}`);
+  lines.push('{240-fg}────────────────────────────────{/240-fg}');
+  lines.push(` {244-fg}PREDMETY (${subjCount}){/244-fg}`);
 
   const subjItems = items.slice(2);
   const boxH = gradesSidebar.height || 37;
-  const availRows = Math.max(6, boxH - 14);
+  const availRows = Math.max(6, boxH - 13);
 
   let startIdx = 0;
   const activeSubjOffset = Math.max(0, gradesCursor - 2);
@@ -1459,7 +1427,7 @@ function renderGradesSidebar() {
   const endIdx = Math.min(subjItems.length, startIdx + availRows);
 
   if (startIdx > 0) {
-    lines.push(` {cyan-fg}  ▲ Ďalšie predmety vyššie (${startIdx}){/cyan-fg}`);
+    lines.push(` {240-fg}  ▲ (${startIdx}){/240-fg}`);
   }
 
   for (let sIdx = startIdx; sIdx < endIdx; sIdx++) {
@@ -1468,21 +1436,20 @@ function renderGradesSidebar() {
     const cursorHere = isFocused && gradesCursor === globalIdx;
     const active = gradesCursor === globalIdx;
     const s = it.subject;
-    const avgCol = getGradeColorTag(s.avg);
     const branch = sIdx === subjItems.length - 1 ? '└─' : '├─';
-    const rawLine = `${active ? '▶' : ' '} ${branch} ${it.label}`;
+    const rawLine = `${active ? '▸' : ' '} ${branch} ${it.label}`;
 
     if (cursorHere) {
-      lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/white-fg}{/blue-bg}`);
+      lines.push(`{208-bg}{black-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      lines.push(`{${avgCol}}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/${avgCol}}`);
+      lines.push(`{white-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/white-fg}`);
     } else {
-      lines.push(`{white-fg}   ${branch} {bold}${(s.short || s.name || '-').padEnd(4, ' ')}{/bold} ${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')} {${avgCol}}[${(s.avg || '-').padStart(4, ' ')}]{/${avgCol}} {/white-fg}`);
+      lines.push(`{240-fg}   ${branch}{/240-fg} {white-fg}${(s.short || s.name || '-').padEnd(4, ' ')}{/white-fg} {244-fg}${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')}{/244-fg} {250-fg}[${(s.avg || '-').padStart(4, ' ')}]{/250-fg}`);
     }
   }
 
   if (endIdx < subjItems.length) {
-    lines.push(` {cyan-fg}  ▼ Ďalšie predmety nižšie (${subjItems.length - endIdx}){/cyan-fg}`);
+    lines.push(` {240-fg}  ▼ (${subjItems.length - endIdx}){/240-fg}`);
   }
 
   gradesSidebar.setContent(lines.join('\n'));
@@ -1495,7 +1462,6 @@ function renderGradesOverview() {
   const subjs = dashboardData.subjects || [];
   const distData = (dashboardData.distribution && dashboardData.distribution.data) || [0, 0, 0, 0, 0];
   const distLabels = ['Výborný', 'Chválitebný', 'Dobrý', 'Dostatočný', 'Nedostatočný'];
-  const distColors = ['green-fg', 'cyan-fg', 'yellow-fg', 'magenta-fg', 'red-fg'];
   const totalClassified = distData.reduce((a, b) => a + b, 0);
   const maxDist = Math.max(...distData, 1);
 
@@ -1511,7 +1477,6 @@ function renderGradesOverview() {
   const midLine = `├${'─'.repeat(leftW)}┼${'─'.repeat(rightW)}┤`;
   const botLine = `└${'─'.repeat(leftW)}┴${'─'.repeat(rightW)}┘`;
 
-  // Sample up to maxPts so each column is at least 6 chars wide (fits '●1.88' and '15.09' without truncation)
   const plotAreaW = Math.max(12, leftW - 7);
   const maxPts = Math.max(2, Math.min(8, Math.floor(plotAreaW / 6)));
   let tx = rawTx;
@@ -1542,15 +1507,14 @@ function renderGradesOverview() {
       rowChars += padVis(cellStr, colStep, 'center');
     }
     const labelStr = ` ${lvl.toFixed(1)} ┤`;
-    const colTag = lvl <= 1.5 ? 'green-fg' : (lvl <= 2.0 ? 'cyan-fg' : 'yellow-fg');
-    chartRows.push(`{white-fg}${labelStr}{/white-fg}{${colTag}}{bold}${padRawLine(rowChars, leftW - 6)}{/bold}{/${colTag}}`);
+    chartRows.push(`{244-fg}${labelStr}{/244-fg}{white-fg}${padRawLine(rowChars, leftW - 6)}{/white-fg}`);
   });
 
   let xAxisBody = '';
   for (let i = 0; i < plotCount; i++) {
     xAxisBody += padVis(tx[i] || '', colStep, 'center');
   }
-  chartRows.push(`{cyan-fg}${padRawLine('     └' + xAxisBody, leftW)}{/cyan-fg}`);
+  chartRows.push(`{244-fg}${padRawLine('     └' + xAxisBody, leftW)}{/244-fg}`);
 
   // Build 6 lines for Right Grade Distribution
   const distRows = [];
@@ -1559,31 +1523,30 @@ function renderGradesOverview() {
     const cnt = distData[i] || 0;
     const pct = totalClassified > 0 ? ((cnt / totalClassified) * 100).toFixed(1) : '0.0';
     const bLen = Math.round((cnt / maxDist) * barMaxW);
-    const bar = (bLen > 0 ? '█'.repeat(bLen) : '░').padEnd(barMaxW, ' ');
-    const cTag = distColors[i];
+    const bar = (bLen > 0 ? '█'.repeat(bLen) : '·').padEnd(barMaxW, ' ');
     const linePlain = ` ${i + 1} ${distLabels[i].padEnd(12, ' ')} `;
     const rightStats = ` ${String(cnt).padStart(2, ' ')}x (${pct.padStart(5, ' ')}%)`;
     const padRem = Math.max(0, rightW - (linePlain.length + bar.length + rightStats.length));
     distRows.push(
-      `{white-fg}{bold}${linePlain}{/bold}{/white-fg}{${cTag}}${bar}{/${cTag}}{white-fg}{bold}${rightStats}{/bold}{/white-fg}${' '.repeat(padRem)}`
+      `{250-fg}${linePlain}{/250-fg}{white-fg}${bar}{/white-fg}{244-fg}${rightStats}{/244-fg}${' '.repeat(padRem)}`
     );
   }
   const passCount = distData[0] + distData[1] + distData[2] + distData[3];
   const passRate = totalClassified > 0 ? ((passCount / totalClassified) * 100).toFixed(1) : '0.0';
-  const summaryTxt = ` Spolu: ${totalClassified} zn. │ Priemer SR: ${dashboardData.gpa || '-'} │ Úspešnosť: ${passRate}%`;
-  distRows.push(`{cyan-fg}{bold}${padRawLine(summaryTxt, rightW)}{/bold}{/cyan-fg}`);
+  const summaryTxt = ` Spolu: ${totalClassified}   │   Priemer: ${dashboardData.gpa || '-'}   │   Úspešnosť: ${passRate}%`;
+  distRows.push(`{250-fg}${padRawLine(summaryTxt, rightW)}{/250-fg}`);
 
   const out = [];
-  out.push(`{cyan-fg}${topLine}{/cyan-fg}`);
+  out.push(`{240-fg}${topLine}{/240-fg}`);
   out.push(
-    `{cyan-fg}│{/cyan-fg}{bold}{green-fg}${padRawLine(' VÝVOJ PRIEMERU (CHRONOLOGICKÝ GRAF GPA)', leftW)}{/green-fg}{/bold}` +
-    `{cyan-fg}│{/cyan-fg}{bold}{cyan-fg}${padRawLine(' ROZDELENIE ZNÁMOK (1 - 5) & CELKOVÁ ŠTATISTIKA', rightW)}{/cyan-fg}{/bold}{cyan-fg}│{/cyan-fg}`
+    `{240-fg}│{/240-fg}{bold}{white-fg}${padRawLine(' VÝVOJ PRIEMERU', leftW)}{/white-fg}{/bold}` +
+    `{240-fg}│{/240-fg}{bold}{white-fg}${padRawLine(' DISTRIBÚCIA ZNÁMOK (1 - 5)', rightW)}{/white-fg}{/bold}{240-fg}│{/240-fg}`
   );
-  out.push(`{cyan-fg}${midLine}{/cyan-fg}`);
+  out.push(`{240-fg}${midLine}{/240-fg}`);
   for (let r = 0; r < 6; r++) {
-    out.push(`{cyan-fg}│{/cyan-fg}${chartRows[r]}{cyan-fg}│{/cyan-fg}${distRows[r]}{cyan-fg}│{/cyan-fg}`);
+    out.push(`{240-fg}│{/240-fg}${chartRows[r]}{240-fg}│{/240-fg}${distRows[r]}{240-fg}│{/240-fg}`);
   }
-  out.push(`{cyan-fg}${botLine}{/cyan-fg}`);
+  out.push(`{240-fg}${botLine}{/240-fg}`);
 
   // 2. Bottom Full-Width Table of All Subjects
   const wShort = 6;
@@ -1600,41 +1563,40 @@ function renderGradesOverview() {
     '─'.repeat(wPct), '─'.repeat(wAvg), '─'.repeat(wFin), '─'.repeat(wVerb),
   ].join(m) + r;
 
-  out.push(`{cyan-fg}${tLine('┌', '┬', '┐')}{/cyan-fg}`);
+  out.push(`{240-fg}${tLine('┌', '┬', '┐')}{/240-fg}`);
   out.push(
-    '{cyan-fg}│{/cyan-fg}' +
-    `{bold}{cyan-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('NÁZOV PREDMETU', wSubj)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('ZAPÍSANÉ ZNÁMKY (CHRONOLOGICKY)', wMarks)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('POČ.', wCnt, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('PRIEM.%', wPct, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('PRIEMER', wAvg, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('VYS.', wFin, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('KLASIFIKÁCIA', wVerb, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('ZNÁMKY', wMarks)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('POČ.', wCnt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('%', wPct, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PRIEMER', wAvg, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('VYS.', wFin, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('HODNOTENIE', wVerb, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  out.push(`{cyan-fg}${tLine('├', '┼', '┤')}{/cyan-fg}`);
+  out.push(`{240-fg}${tLine('├', '┼', '┤')}{/240-fg}`);
 
   subjs.forEach((s) => {
-    const col = getGradeColorTag(s.avg);
     const marksStr = (s.marks_preview && s.marks_preview.length > 0)
       ? s.marks_preview.join(', ')
       : '-';
     out.push(
-      '{cyan-fg}│{/cyan-fg}' +
-      `{bold}{white-fg}${padVis(s.short || s.name, wShort, 'center')}{/white-fg}{/bold}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis(s.full_name || s.name, wSubj)}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{cyan-fg}${padVis(marksStr, wMarks)}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis(String(s.count || 0), wCnt, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis(s.percent || '-', wPct, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{bold}{${col}}${padVis(s.avg || '-', wAvg, 'center')}{/${col}}{/bold}{cyan-fg}│{/cyan-fg}` +
-      `{bold}{${col}}${padVis(s.final_grade || '-', wFin, 'center')}{/${col}}{/bold}{cyan-fg}│{/cyan-fg}` +
-      `{${col}}${padVis(s.verbal || '-', wVerb, 'center')}{/${col}}{cyan-fg}│{/cyan-fg}`
+      '{240-fg}│{/240-fg}' +
+      `{bold}{white-fg}${padVis(s.short || s.name, wShort, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+      `{250-fg}${padVis(s.full_name || s.name, wSubj)}{/250-fg}{240-fg}│{/240-fg}` +
+      `{white-fg}${padVis(marksStr, wMarks)}{/white-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis(String(s.count || 0), wCnt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis(s.percent || '-', wPct, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{bold}{white-fg}${padVis(s.avg || '-', wAvg, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+      `{bold}{white-fg}${padVis(s.final_grade || '-', wFin, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+      `{250-fg}${padVis(s.verbal || '-', wVerb, 'center')}{/250-fg}{240-fg}│{/240-fg}`
     );
   });
 
-  out.push(`{cyan-fg}${tLine('└', '┴', '┘')}{/cyan-fg}`);
+  out.push(`{240-fg}${tLine('└', '┴', '┘')}{/240-fg}`);
 
-  gradesMainBox.setLabel(' [ PREHĽAD VŠETKÝCH ZNÁMOK, GRAF PRIEMERU A PREDMETY ] ');
+  gradesMainBox.setLabel(' [ PREHĽAD ZNÁMOK ] ');
   gradesMainBox.setContent(out.join('\n'));
 }
 
@@ -1649,8 +1611,8 @@ function renderCommendationsView() {
 
   const out = [];
   out.push(
-    ` {bold}{yellow-fg}OFICIÁLNE POCHVALY, POZNÁMKY A OPATRENIA VO VÝCHOVE{/yellow-fg}{/bold}   │   ` +
-    `{green-fg}{bold}Pochvaly: ${pochvalyCnt}{/bold}{/green-fg}  │  {red-fg}{bold}Poznámky / Pokarhania: ${poznamkyCnt}{/bold}{/red-fg}`
+    ` {bold}{white-fg}POCHVALY A POZNÁMKY{/white-fg}{/bold}   {240-fg}│{/240-fg}   ` +
+    `{250-fg}Pochvaly: ${pochvalyCnt}   ·   Poznámky: ${poznamkyCnt}{/250-fg}`
   );
 
   const wNum = 4;
@@ -1666,50 +1628,49 @@ function renderCommendationsView() {
     '─'.repeat(wTeach), '─'.repeat(wState), '─'.repeat(wText),
   ].join(m) + r;
 
-  out.push(`{yellow-fg}${cLine('┌', '┬', '┐')}{/yellow-fg}`);
+  out.push(`{240-fg}${cLine('┌', '┬', '┐')}{/240-fg}`);
   out.push(
-    '{yellow-fg}│{/yellow-fg}' +
-    `{bold}{cyan-fg}${padVis('#', wNum, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('DÁTUM A ČAS', wDate, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('DRUH', wCat, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('PREDMET', wSubj)}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('STAV', wState, 'center')}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-    `{bold}{cyan-fg}${padVis('TEXT POCHVALY / POZNÁMKY', wText)}{/bold}{/cyan-fg}{yellow-fg}│{/yellow-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('#', wNum, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('DRUH', wCat, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('STAV', wState, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('TEXT', wText)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  out.push(`{yellow-fg}${cLine('├', '┼', '┤')}{/yellow-fg}`);
+  out.push(`{240-fg}${cLine('├', '┼', '┤')}{/240-fg}`);
 
   if (comms.length === 0) {
     out.push(
-      '{yellow-fg}│{/yellow-fg}' +
-      `{white-fg}${padVis('-', wNum, 'center')}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-      `{white-fg}${padVis('-', wDate, 'center')}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-      `{cyan-fg}${padVis('INFO', wCat, 'center')}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-      `{white-fg}${padVis('Správanie', wSubj)}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-      `{white-fg}${padVis('-', wTeach)}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-      `{white-fg}${padVis('-', wState, 'center')}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-      `{white-fg}${padVis('Zatiaľ nemáš žiadne zapísané pochvaly ani poznámky.', wText)}{/white-fg}{yellow-fg}│{/yellow-fg}`
+      '{240-fg}│{/240-fg}' +
+      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wCat, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('Správanie', wSubj)}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wTeach)}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wState, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('Žiadne záznamy.', wText)}{/244-fg}{240-fg}│{/240-fg}`
     );
   } else {
     comms.forEach((c, idx) => {
-      const col = c.category === 'POCHVALA' ? 'green-fg' : (c.category === 'POZNÁMKA' ? 'red-fg' : 'cyan-fg');
       out.push(
-        '{yellow-fg}│{/yellow-fg}' +
-        `{white-fg}${padVis(`${idx + 1}.`, wNum, 'center')}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-        `{white-fg}${padVis(c.date || '-', wDate, 'center')}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-        `{bold}{${col}}${padVis(c.category || 'ZÁZNAM', wCat, 'center')}{/${col}}{/bold}{yellow-fg}│{/yellow-fg}` +
-        `{white-fg}${padVis(c.subject || 'Správanie', wSubj)}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-        `{white-fg}${padVis(c.teacher || '-', wTeach)}{/white-fg}{yellow-fg}│{/yellow-fg}` +
-        `{cyan-fg}${padVis(c.state || '-', wState, 'center')}{/cyan-fg}{yellow-fg}│{/yellow-fg}` +
-        `{bold}{${col}}${padVis(c.text || '-', wText)}{/${col}}{/bold}{yellow-fg}│{/yellow-fg}`
+        '{240-fg}│{/240-fg}' +
+        `{244-fg}${padVis(`${idx + 1}.`, wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(c.date || '-', wDate, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
+        `{bold}{white-fg}${padVis(c.category || 'ZÁZNAM', wCat, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(c.subject || 'Správanie', wSubj)}{/250-fg}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(c.teacher || '-', wTeach)}{/250-fg}{240-fg}│{/240-fg}` +
+        `{244-fg}${padVis(c.state || '-', wState, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+        `{white-fg}${padVis(c.text || '-', wText)}{/white-fg}{240-fg}│{/240-fg}`
       );
     });
   }
-  out.push(`{yellow-fg}${cLine('└', '┴', '┘')}{/yellow-fg}`);
+  out.push(`{240-fg}${cLine('└', '┴', '┘')}{/240-fg}`);
   out.push('');
 
   // Second Table: Recent Grades Overview with Teachers & Details
-  out.push(' {bold}{cyan-fg}PREHĽAD POSLEDNÝCH ZNÁMOK, KOMENTÁROV A VYUČUJÚCICH{/cyan-fg}{/bold}');
+  out.push(' {bold}{white-fg}KOMENTÁRE K ZNÁMKAM{/white-fg}{/bold}');
   const gWithNotes = allGrades.filter((g) => g.note && g.note !== '-' && g.note.trim() !== '');
   const listToRender = gWithNotes.length > 0 ? gWithNotes : allGrades.slice(0, 12);
 
@@ -1725,36 +1686,35 @@ function renderCommendationsView() {
     '─'.repeat(gwWgt), '─'.repeat(gwTitle), '─'.repeat(gwNote),
   ].join(m) + r;
 
-  out.push(`{cyan-fg}${gLine('┌', '┬', '┐')}{/cyan-fg}`);
+  out.push(`{240-fg}${gLine('┌', '┬', '┐')}{/240-fg}`);
   out.push(
-    '{cyan-fg}│{/cyan-fg}' +
-    `{bold}{cyan-fg}${padVis('DÁTUM', gwDate, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('PREDM.', gwSubj, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('HODNOTENIE', gwGrd, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('VÁHA', gwWgt, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('ZADANIE / PÍSOMKA / UDALOSŤ', gwTitle)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('VYUČUJÚCI & POZNÁMKA', gwNote)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('DÁTUM', gwDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PREDM.', gwSubj, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('ZNÁMKA', gwGrd, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('VÁHA', gwWgt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UDALOSŤ', gwTitle)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('VYUČUJÚCI / POZNÁMKA', gwNote)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  out.push(`{cyan-fg}${gLine('├', '┼', '┤')}{/cyan-fg}`);
+  out.push(`{240-fg}${gLine('├', '┼', '┤')}{/240-fg}`);
 
   listToRender.forEach((g) => {
-    const col = getGradeColorTag(g.grade);
     const noteOrTeacher = g.note
-      ? `${g.teacher && g.teacher !== '-' ? g.teacher + ' │ ' : ''}${g.note}`
+      ? `${g.teacher && g.teacher !== '-' ? g.teacher + ' · ' : ''}${g.note}`
       : (g.teacher && g.teacher !== '-' ? g.teacher : (g.comment || '-'));
     out.push(
-      '{cyan-fg}│{/cyan-fg}' +
-      `{white-fg}${padVis(g.date || '-', gwDate, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{bold}{white-fg}${padVis(g.subject || '-', gwSubj, 'center')}{/white-fg}{/bold}{cyan-fg}│{/cyan-fg}` +
-      `{bold}{${col}}${padVis(g.grade || '-', gwGrd, 'center')}{/${col}}{/bold}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis(g.weight || '1', gwWgt, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis(g.title || '-', gwTitle)}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{cyan-fg}${padVis(noteOrTeacher, gwNote)}{/cyan-fg}{cyan-fg}│{/cyan-fg}`
+      '{240-fg}│{/240-fg}' +
+      `{244-fg}${padVis(g.date || '-', gwDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{bold}{white-fg}${padVis(g.subject || '-', gwSubj, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+      `{bold}{white-fg}${padVis(g.grade || '-', gwGrd, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis(g.weight || '1', gwWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{250-fg}${padVis(g.title || '-', gwTitle)}{/250-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis(noteOrTeacher, gwNote)}{/244-fg}{240-fg}│{/240-fg}`
     );
   });
-  out.push(`{cyan-fg}${gLine('└', '┴', '┘')}{/cyan-fg}`);
+  out.push(`{240-fg}${gLine('└', '┴', '┘')}{/240-fg}`);
 
-  gradesMainBox.setLabel(' [ POCHVALY, POZNÁMKY A KOMENTÁRE UČITEĽOV ] ');
+  gradesMainBox.setLabel(' [ POCHVALY A POZNÁMKY ] ');
   gradesMainBox.setContent(out.join('\n'));
 }
 
@@ -1762,24 +1722,23 @@ function renderSubjectDetailView(subj) {
   const boxWidth = gradesMainBox.width && gradesMainBox.width > 40 ? gradesMainBox.width : Math.max(80, screen.width - SIDEBAR_WIDTH);
   const innerW = Math.max(82, boxWidth - 4);
 
-  const avgCol = getGradeColorTag(subj.avg);
   const sDist = subj.distribution || [0, 0, 0, 0, 0];
   const gRows = subj.grades || [];
 
   const out = [];
 
   // 1. Top Framed Subject Card
-  out.push(`{cyan-fg}┌${'─'.repeat(innerW)}┐{/cyan-fg}`);
-  const titleLine = ` PREDMET: ${(subj.short || subj.name || '-')} — ${subj.full_name || subj.name || '-'}   │   VYUČUJÚCI: ${subj.teacher || '-'}`;
-  out.push(`{cyan-fg}│{/cyan-fg}{blue-bg}{white-fg}{bold}${padRawLine(titleLine, innerW)}{/bold}{/white-fg}{/blue-bg}{cyan-fg}│{/cyan-fg}`);
-  out.push(`{cyan-fg}├${'─'.repeat(innerW)}┤{/cyan-fg}`);
+  out.push(`{240-fg}┌${'─'.repeat(innerW)}┐{/240-fg}`);
+  const titleLine = ` ${(subj.short || subj.name || '-')} — ${subj.full_name || subj.name || '-'}   │   VYUČUJÚCI: ${subj.teacher || '-'}`;
+  out.push(`{240-fg}│{/240-fg}{236-bg}{white-fg}{bold}${padRawLine(titleLine, innerW)}{/bold}{/white-fg}{/236-bg}{240-fg}│{/240-fg}`);
+  out.push(`{240-fg}├${'─'.repeat(innerW)}┤{/240-fg}`);
 
-  const statsLine = ` VÁŽENÝ PRIEMER: ${subj.avg || '-'}   │   PRIEMER V %: ${subj.percent || '-'}   │   ZNÁMKA NA VYSVEDČENÍ: ${subj.final_grade || '-'} (${subj.verbal || '-'})   │   POČET ZNÁMOK: ${subj.count || 0}`;
-  out.push(`{cyan-fg}│{/cyan-fg}{bold}{${avgCol}}${padRawLine(statsLine, innerW)}{/${avgCol}}{/bold}{cyan-fg}│{/cyan-fg}`);
+  const statsLine = ` PRIEMER: ${subj.avg || '-'}   │   PERCENTÁ: ${subj.percent || '-'}   │   VYSVEDČENIE: ${subj.final_grade || '-'} (${subj.verbal || '-'})   │   POČET ZNÁMOK: ${subj.count || 0}`;
+  out.push(`{240-fg}│{/240-fg}{white-fg}${padRawLine(statsLine, innerW)}{/white-fg}{240-fg}│{/240-fg}`);
 
-  const distSummary = ` ROZDELENIE ZNÁMOK:  [1 Výborný]: ${sDist[0]}x  │  [2 Chválitebný]: ${sDist[1]}x  │  [3 Dobrý]: ${sDist[2]}x  │  [4 Dostatočný]: ${sDist[3]}x  │  [5 Nedostatočný]: ${sDist[4]}x`;
-  out.push(`{cyan-fg}│{/cyan-fg}{white-fg}${padRawLine(distSummary, innerW)}{/white-fg}{cyan-fg}│{/cyan-fg}`);
-  out.push(`{cyan-fg}└${'─'.repeat(innerW)}┘{/cyan-fg}`);
+  const distSummary = ` DISTRIBÚCIA:  [1]: ${sDist[0]}x   ·   [2]: ${sDist[1]}x   ·   [3]: ${sDist[2]}x   ·   [4]: ${sDist[3]}x   ·   [5]: ${sDist[4]}x`;
+  out.push(`{240-fg}│{/240-fg}{244-fg}${padRawLine(distSummary, innerW)}{/244-fg}{240-fg}│{/240-fg}`);
+  out.push(`{240-fg}└${'─'.repeat(innerW)}┘{/240-fg}`);
   out.push('');
 
   // 2. Detailed Table of All Grades in Subject
@@ -1798,55 +1757,54 @@ function renderSubjectDetailView(subj) {
     '─'.repeat(wPts), '─'.repeat(wWgt), '─'.repeat(wCavg), '─'.repeat(wTitle), '─'.repeat(wTeach),
   ].join(m) + r;
 
-  out.push(`{cyan-fg}${sLine('┌', '┬', '┐')}{/cyan-fg}`);
+  out.push(`{240-fg}${sLine('┌', '┬', '┐')}{/240-fg}`);
   out.push(
-    '{cyan-fg}│{/cyan-fg}' +
-    `{bold}{cyan-fg}${padVis('#', wIdx, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('HODNOTENIE', wGrd, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('ZNÁMKA', wNum, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('BODY / %', wPts, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('VÁHA', wWgt, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('PRIEM.TR.', wCavg, 'center')}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('NÁZOV ZADANIA / PÍSOMKY / TÉMA', wTitle)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-    `{bold}{cyan-fg}${padVis('ZAPÍSAL (UČITEĽ)', wTeach)}{/bold}{/cyan-fg}{cyan-fg}│{/cyan-fg}`
+    '{240-fg}│{/240-fg}' +
+    `{bold}{250-fg}${padVis('#', wIdx, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('HODNOTENIE', wGrd, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('ZNÁMKA', wNum, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('BODY / %', wPts, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('VÁHA', wWgt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('PRIEM.TR.', wCavg, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UDALOSŤ / TÉMA', wTitle)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
+    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
   );
-  out.push(`{cyan-fg}${sLine('├', '┼', '┤')}{/cyan-fg}`);
+  out.push(`{240-fg}${sLine('├', '┼', '┤')}{/240-fg}`);
 
   if (gRows.length === 0) {
     out.push(
-      '{cyan-fg}│{/cyan-fg}' +
-      `{white-fg}${padVis('-', wIdx, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wDate, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wGrd, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wNum, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wPts, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wWgt, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wCavg, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('Žiadne známky v tomto predmete.', wTitle)}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-      `{white-fg}${padVis('-', wTeach)}{/white-fg}{cyan-fg}│{/cyan-fg}`
+      '{240-fg}│{/240-fg}' +
+      `{244-fg}${padVis('-', wIdx, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wGrd, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wPts, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wCavg, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('Žiadne známky.', wTitle)}{/244-fg}{240-fg}│{/240-fg}` +
+      `{244-fg}${padVis('-', wTeach)}{/244-fg}{240-fg}│{/240-fg}`
     );
   } else {
     gRows.forEach((g, idx) => {
-      const col = getGradeColorTag(g.numeric_val !== '-' ? g.numeric_val : g.grade);
       out.push(
-        '{cyan-fg}│{/cyan-fg}' +
-        `{white-fg}${padVis(`${idx + 1}.`, wIdx, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-        `{white-fg}${padVis(g.date || '-', wDate, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-        `{bold}{${col}}${padVis(g.grade || '-', wGrd, 'center')}{/${col}}{/bold}{cyan-fg}│{/cyan-fg}` +
-        `{bold}{${col}}${padVis(g.numeric_val || '-', wNum, 'center')}{/${col}}{/bold}{cyan-fg}│{/cyan-fg}` +
-        `{cyan-fg}${padVis(g.points_str || '-', wPts, 'center')}{/cyan-fg}{cyan-fg}│{/cyan-fg}` +
-        `{white-fg}${padVis(g.weight || '1', wWgt, 'center')}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-        `{yellow-fg}${padVis(g.class_avg || '-', wCavg, 'center')}{/yellow-fg}{cyan-fg}│{/cyan-fg}` +
-        `{white-fg}${padVis(g.title || '-', wTitle)}{/white-fg}{cyan-fg}│{/cyan-fg}` +
-        `{green-fg}${padVis(g.teacher || '-', wTeach)}{/green-fg}{cyan-fg}│{/cyan-fg}`
+        '{240-fg}│{/240-fg}' +
+        `{244-fg}${padVis(`${idx + 1}.`, wIdx, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(g.date || '-', wDate, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
+        `{bold}{white-fg}${padVis(g.grade || '-', wGrd, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
+        `{white-fg}${padVis(g.numeric_val || '-', wNum, 'center')}{/white-fg}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(g.points_str || '-', wPts, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
+        `{244-fg}${padVis(g.weight || '1', wWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+        `{244-fg}${padVis(g.class_avg || '-', wCavg, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
+        `{white-fg}${padVis(g.title || '-', wTitle)}{/white-fg}{240-fg}│{/240-fg}` +
+        `{250-fg}${padVis(g.teacher || '-', wTeach)}{/250-fg}{240-fg}│{/240-fg}`
       );
     });
   }
 
-  out.push(`{cyan-fg}${sLine('└', '┴', '┘')}{/cyan-fg}`);
+  out.push(`{240-fg}${sLine('└', '┴', '┘')}{/240-fg}`);
 
-  gradesMainBox.setLabel(` [ PREDMET: ${(subj.short || subj.name || '').toUpperCase()} — ${(subj.full_name || subj.name || '').toUpperCase()} ] `);
+  gradesMainBox.setLabel(` [ ${(subj.short || subj.name || '').toUpperCase()} — ${(subj.full_name || subj.name || '').toUpperCase()} ] `);
   gradesMainBox.setContent(out.join('\n'));
 }
 
@@ -1869,12 +1827,12 @@ function renderGradesCard() {
 // ==============================================================================
 
 const MESSAGE_CATEGORIES = [
-  { key: 'SPRAVY', label: 'Správy a oznamy', badgeColor: 'cyan-fg', borderColor: 'cyan-fg' },
-  { key: 'ZNAMKY', label: 'Známky a pochvaly', badgeColor: 'green-fg', borderColor: 'green-fg' },
-  { key: 'SUPLOVANIE', label: 'Suplovanie a rozvrh', badgeColor: 'yellow-fg', borderColor: 'yellow-fg' },
-  { key: 'ULOHY', label: 'Úlohy a písomky', badgeColor: 'magenta-fg', borderColor: 'magenta-fg' },
-  { key: 'DOCHADZKA', label: 'Dochádzka a príchod', badgeColor: 'cyan-fg', borderColor: 'cyan-fg' },
-  { key: 'OSTATNE', label: 'Jedáleň a ostatné', badgeColor: 'white-fg', borderColor: 'white-fg' },
+  { key: 'SPRAVY', label: 'Správy a oznamy' },
+  { key: 'ZNAMKY', label: 'Známky a pochvaly' },
+  { key: 'SUPLOVANIE', label: 'Suplovanie a rozvrh' },
+  { key: 'ULOHY', label: 'Úlohy a písomky' },
+  { key: 'DOCHADZKA', label: 'Dochádzka a príchod' },
+  { key: 'OSTATNE', label: 'Jedáleň a ostatné' },
 ];
 
 let msgFilterChecked = {
@@ -2041,10 +1999,8 @@ function toggleMessageFilterAtCursor() {
 
 function renderMessagesSidebar() {
   const isFilterFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'filters';
-  messagesSidebar.style.border.fg = isFilterFocused ? 'yellow' : 'cyan';
-  messagesSidebar.setLabel(
-    isFilterFocused ? ' [ FILTRE OZNÁMENÍ (AKTÍVNE) ] ' : ' [ FILTRE OZNÁMENÍ (← / Tab) ] '
-  );
+  messagesSidebar.style.border.fg = isFilterFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesSidebar.setLabel(' [ FILTRE ] ');
 
   const all = getAllNotificationsList();
   const filtered = getFilteredNotifications();
@@ -2060,31 +2016,29 @@ function renderMessagesSidebar() {
   const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
 
   const lines = [];
-  lines.push(' {bold}{cyan-fg}══ PREHĽAD NOTIFIKÁCIÍ ══{/cyan-fg}{/bold}');
-  lines.push(` {blue-bg}{white-fg}{bold}${padRawLine(` ● ZOBRAZENÉ: ${filtered.length} / ${all.length}`, 30)}{/bold}{/white-fg}{/blue-bg}`);
+  lines.push(' {244-fg}ZOBRAZENÉ{/244-fg}');
+  lines.push(` {236-bg}{white-fg}{bold}${padRawLine(` ● ${filtered.length} / ${all.length} SPRÁV`, 30)}{/bold}{/white-fg}{/236-bg}`);
   if (msgSearchQuery.trim()) {
-    lines.push(` {yellow-fg}{bold}${fitPlain(`Filter: "${msgSearchQuery.trim()}"`, 30)}{/bold}{/yellow-fg}`);
-  } else {
-    lines.push(' {white-fg}Textový filter: žiadny{/white-fg}');
+    lines.push(` {250-fg}${fitPlain(`Hľadané: "${msgSearchQuery.trim()}"`, 30)}{/250-fg}`);
   }
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(' {bold}{white-fg}TYPY OZNÁMENÍ (Space/Enter):{/white-fg}{/bold}');
+  lines.push('{240-fg}────────────────────────────────{/240-fg}');
+  lines.push(' {244-fg}KATEGÓRIE{/244-fg}');
   lines.push('');
 
   // Row 0: VŠETKY TYPY
   const row0Focused = isFilterFocused && msgFilterCursor === 0;
   const markAll = allChecked ? '[x]' : '[ ]';
-  const row0Text = ` ${row0Focused ? '▶' : ' '} ${markAll} VŠETKY TYPY (${all.length})`;
+  const row0Text = ` ${row0Focused ? '▸' : ' '} ${markAll} VŠETKY (${all.length})`;
   if (row0Focused) {
-    lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/white-fg}{/blue-bg}`);
+    lines.push(`{208-bg}{black-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/black-fg}{/208-bg}`);
   } else if (allChecked) {
-    lines.push(`{green-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/green-fg}`);
+    lines.push(`{white-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/white-fg}`);
   } else {
-    lines.push(`{white-fg}${padRawLine(row0Text, 32)}{/white-fg}`);
+    lines.push(`{244-fg}${padRawLine(row0Text, 32)}{/244-fg}`);
   }
   lines.push('');
 
-  // Rows 1..6: Individual Category Checkboxes with generous spacing
+  // Rows 1..6: Individual Category Checkboxes
   MESSAGE_CATEGORIES.forEach((cat, idx) => {
     const itemIdx = idx + 1;
     const isHere = isFilterFocused && msgFilterCursor === itemIdx;
@@ -2092,14 +2046,14 @@ function renderMessagesSidebar() {
     const boxMark = checked ? '[x]' : '[ ]';
     const cnt = countsByCat[cat.key] || 0;
     const labelPart = fitPlain(cat.label, 19).padEnd(19, ' ');
-    const rawRow = ` ${isHere ? '▶' : ' '} ${boxMark} ${labelPart} (${String(cnt).padStart(2, ' ')})`;
+    const rawRow = ` ${isHere ? '▸' : ' '} ${boxMark} ${labelPart} (${String(cnt).padStart(2, ' ')})`;
 
     if (isHere) {
-      lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(rawRow, 32)}{/bold}{/white-fg}{/blue-bg}`);
+      lines.push(`{208-bg}{black-fg}{bold}${padRawLine(rawRow, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (checked) {
-      lines.push(`{${cat.badgeColor}}{bold}   [x]{/bold}{/${cat.badgeColor}} {white-fg}${labelPart}{/white-fg} {cyan-fg}(${String(cnt).padStart(2, ' ')}){/cyan-fg}`);
+      lines.push(`{white-fg}   [x] ${labelPart}{/white-fg} {244-fg}(${String(cnt).padStart(2, ' ')}){/244-fg}`);
     } else {
-      lines.push(`{white-fg}   [ ] ${labelPart} (${String(cnt).padStart(2, ' ')}){/white-fg}`);
+      lines.push(`{240-fg}   [ ] ${labelPart} (${String(cnt).padStart(2, ' ')}){/240-fg}`);
     }
     lines.push('');
   });
@@ -2107,56 +2061,41 @@ function renderMessagesSidebar() {
   // Row 7: Reset Filters & Search
   const resetIdx = MESSAGE_CATEGORIES.length + 1;
   const resetFocused = isFilterFocused && msgFilterCursor === resetIdx;
-  const resetText = ` ${resetFocused ? '▶' : ' '} [↺] Zrušiť filtre & hľadanie`;
+  const resetText = ` ${resetFocused ? '▸' : ' '} [↺] Resetovať filtre`;
   if (resetFocused) {
-    lines.push(`{blue-bg}{yellow-fg}{bold}${padRawLine(resetText, 32)}{/bold}{/yellow-fg}{/blue-bg}`);
+    lines.push(`{208-bg}{black-fg}{bold}${padRawLine(resetText, 32)}{/bold}{/black-fg}{/208-bg}`);
   } else {
-    lines.push(`{yellow-fg}${padRawLine(resetText, 32)}{/yellow-fg}`);
+    lines.push(`{244-fg}${padRawLine(resetText, 32)}{/244-fg}`);
   }
-
-  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
-  lines.push(' {bold}{white-fg}OVLÁDANIE KARTY:{/white-fg}{/bold}');
-  lines.push(' {cyan-fg}[Space/Enter]{/cyan-fg} {white-fg}Začiarknuť [x]{/white-fg}');
-  lines.push(' {cyan-fg}[← / → / Tab]{/cyan-fg} {white-fg}Filtre ⇄ Správy{/white-fg}');
-  lines.push(' {cyan-fg}[/ alebo f]{/cyan-fg}   {white-fg}Hľadať text{/white-fg}');
-  lines.push(' {cyan-fg}[↑ / ↓]{/cyan-fg}       {white-fg}Skrolovať nižšie{/white-fg}');
 
   messagesSidebar.setContent(lines.join('\n'));
 }
 
 function renderMessagesSearchBox() {
   const isSearchFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'search';
-  messagesSearchBox.style.border.fg = isSearchFocused ? 'yellow' : 'cyan';
-  messagesSearchBox.setLabel(
-    isSearchFocused
-      ? ' [ VYHĽADÁVANIE AKTÍVNE — PÍŠ TEXT (Enter/↓ = do správ, Backspace = zmazať) ] '
-      : ' [ VYHĽADÁVANIE SPRÁV, PREDMETOV A UČITEĽOV (Stlač / alebo f) ] '
-  );
+  messagesSearchBox.style.border.fg = isSearchFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesSearchBox.setLabel(' [ HĽADAŤ ] ');
 
   const filteredCount = getFilteredNotifications().length;
   const totalCount = getAllNotificationsList().length;
 
   let queryDisplay = '';
   if (isSearchFocused) {
-    queryDisplay = `{blue-bg}{white-fg}{bold} 🔍 HĽADAŤ: ${msgSearchQuery}█ {/bold}{/white-fg}{/blue-bg}`;
+    queryDisplay = `{208-fg}{bold}Hľadať:{/bold}{/208-fg} {white-fg}${msgSearchQuery}{/white-fg}{208-fg}█{/208-fg}`;
   } else if (msgSearchQuery.trim()) {
-    queryDisplay = `{yellow-fg}{bold} 🔍 HĽADANÝ VÝRAZ: "${msgSearchQuery}" {/bold}{/yellow-fg}  {white-fg}(Stlač {/white-fg}{cyan-fg}{bold}/{/bold}{/cyan-fg}{white-fg} pre úpravu){/white-fg}`;
+    queryDisplay = `{250-fg}Hľadať:{/250-fg} {white-fg}{bold}${msgSearchQuery}{/bold}{/white-fg}`;
   } else {
-    queryDisplay = `{white-fg} 🔍 Zadaj text správy, skratku predmetu (napr. SJL, NEJ, IVI) alebo meno učiteľa... {/white-fg}{cyan-fg}[Stlač /]{/cyan-fg}`;
+    queryDisplay = '{244-fg}Hľadať text alebo predmet...{/244-fg}';
   }
 
-  const rightStat = `{green-fg}{bold}Zobrazené: ${filteredCount} z ${totalCount} správ{/bold}{/green-fg}`;
-  messagesSearchBox.setContent(` ${queryDisplay}    │    ${rightStat}`);
+  const rightStat = `{244-fg}${filteredCount} / ${totalCount}{/244-fg}`;
+  messagesSearchBox.setContent(` ${queryDisplay}    {240-fg}│{/240-fg}    ${rightStat}`);
 }
 
 function renderMessagesFeed() {
   const isFeedFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'feed';
-  messagesFeedBox.style.border.fg = isFeedFocused ? 'yellow' : 'green';
-  messagesFeedBox.setLabel(
-    isFeedFocused
-      ? ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ (AKTÍVNE SKROLOVANIE ↑/↓/PgUp/PgDn) ] '
-      : ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ (→ / Tab = skrolovať) ] '
-  );
+  messagesFeedBox.style.border.fg = isFeedFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesFeedBox.setLabel(' [ SPRÁVY ] ');
 
   const boxWidth = messagesFeedBox.width && messagesFeedBox.width > 45
     ? messagesFeedBox.width
@@ -2168,9 +2107,7 @@ function renderMessagesFeed() {
 
   if (items.length === 0) {
     out.push('');
-    out.push(` {yellow-fg}{bold}Žiadne notifikácie nezodpovedajú zvoleným filtrom alebo hľadanému výrazu "${msgSearchQuery}".{/bold}{/yellow-fg}`);
-    out.push(' {white-fg}• Skús v ľavom paneli začiarknuť viac typov oznámení ([Space] na "VŠETKY TYPY").{/white-fg}');
-    out.push(' {white-fg}• Alebo vymaž vyhľadávacie pole hore.{/white-fg}');
+    out.push(' {244-fg}Žiadne záznamy.{/244-fg}');
     messagesFeedBox.setContent(out.join('\n'));
     return;
   }
@@ -2190,49 +2127,45 @@ function renderMessagesFeed() {
       }
       currentDay = d;
       const dayTitle = formatDaySeparatorTitle(d);
-      const countBadge = `${dayCounts[d] || 1} ${dayCounts[d] === 1 ? 'záznam' : (dayCounts[d] >= 2 && dayCounts[d] <= 4 ? 'záznamy' : 'záznamov')}`;
-      const labelBlock = `  📅 ${dayTitle}  (${countBadge}) `;
+      const labelBlock = ` ${dayTitle} (${dayCounts[d] || 1}) `;
       const lineTotal = Math.max(10, innerW - labelBlock.length);
-      const leftDash = '═'.repeat(4);
-      const rightDash = '═'.repeat(Math.max(4, lineTotal - 4));
+      const leftDash = '─'.repeat(4);
+      const rightDash = '─'.repeat(Math.max(4, lineTotal - 4));
 
-      out.push(` {cyan-fg}{bold}${leftDash}{/bold}{/cyan-fg}{blue-bg}{white-fg}{bold}${labelBlock}{/bold}{/white-fg}{/blue-bg}{cyan-fg}{bold}${rightDash}{/bold}{/cyan-fg}`);
+      out.push(` {240-fg}${leftDash}{/240-fg}{236-bg}{white-fg}{bold}${labelBlock}{/bold}{/white-fg}{/236-bg}{240-fg}${rightDash}{/240-fg}`);
       out.push('');
     }
 
-    const catMeta = getCategoryMeta(n.category);
-    const bCol = catMeta.badgeColor;
-    const fCol = catMeta.borderColor;
     const cardW = innerW - 2;
 
-    // Header Row inside card: [TIME] │ [BADGE] │ PREDMET │ OD: AUTHOR │ TERMÍN
+    // Header Row inside card: TIME │ [BADGE] │ PREDMET │ OD │ TERMÍN
     const timeStr = n.time && n.time !== '-' ? n.time : '     ';
     const badgeStr = `[${n.badge || 'OZNAM'}]`;
-    const subjPart = n.subject ? `  │  PREDMET: ${n.subject}` : '';
-    const authorPart = n.author ? `  │  OD: ${n.author}` : '';
-    const duePart = n.due_date ? `  │  TERMÍN: ${n.due_date}` : '';
-    const headerPlain = ` 🕒 ${timeStr}  ${badgeStr}${subjPart}${authorPart}${duePart}`;
+    const subjPart = n.subject ? `  ·  ${n.subject}` : '';
+    const authorPart = n.author ? `  ·  ${n.author}` : '';
+    const duePart = n.due_date ? `  ·  Termín: ${n.due_date}` : '';
+    const headerPlain = ` ${timeStr}  ${badgeStr}${subjPart}${authorPart}${duePart}`;
 
-    out.push(` {${fCol}}┌${'─'.repeat(cardW)}┐{/${fCol}}`);
+    out.push(` {240-fg}┌${'─'.repeat(cardW)}┐{/240-fg}`);
     out.push(
-      ` {${fCol}}│{/${fCol}}{bold}{${bCol}}${padRawLine(headerPlain, cardW)}{/${bCol}}{/bold}{${fCol}}│{/${fCol}}`
+      ` {240-fg}│{/240-fg}{bold}{250-fg}${padRawLine(headerPlain, cardW)}{/250-fg}{/bold}{240-fg}│{/240-fg}`
     );
-    out.push(` {${fCol}}├${'─'.repeat(cardW)}┤{/${fCol}}`);
+    out.push(` {240-fg}├${'─'.repeat(cardW)}┤{/240-fg}`);
 
     // Wrapped Body Lines with breathing room
     const bodyLines = wrapTextToLines(n.text || '-', cardW - 4);
     bodyLines.forEach((bLine) => {
-      out.push(` {${fCol}}│{/${fCol}}{white-fg}  ${padRawLine(bLine, cardW - 2)}{/white-fg}{${fCol}}│{/${fCol}}`);
+      out.push(` {240-fg}│{/240-fg}{white-fg}  ${padRawLine(bLine, cardW - 2)}{/white-fg}{240-fg}│{/240-fg}`);
     });
 
-    // Optional Attachments or Recipient footer line inside card
+    // Optional Attachments line inside card
     if (Array.isArray(n.attachments) && n.attachments.length > 0) {
-      const attStr = `  📎 Príloha: ${n.attachments.join(', ')}`;
-      out.push(` {${fCol}}│{/${fCol}}{yellow-fg}${padRawLine(attStr, cardW)}{/yellow-fg}{${fCol}}│{/${fCol}}`);
+      const attStr = `  Príloha: ${n.attachments.join(', ')}`;
+      out.push(` {240-fg}│{/240-fg}{244-fg}${padRawLine(attStr, cardW)}{/244-fg}{240-fg}│{/240-fg}`);
     }
 
-    out.push(` {${fCol}}└${'─'.repeat(cardW)}┘{/${fCol}}`);
-    out.push(''); // Breathing space between notification cards
+    out.push(` {240-fg}└${'─'.repeat(cardW)}┘{/240-fg}`);
+    out.push('');
   });
 
   messagesFeedBox.setContent(out.join('\n'));
@@ -2247,8 +2180,9 @@ function renderMessagesCard() {
 function updateWidgets() {
   updateHeader();
   updateFooter();
+  updateMonitorFocusStyles();
 
-  // 1. Line Graph (5 sampled dates max to avoid x-axis text wrapping)
+  // 1. Line Graph (Monochrome white line)
   const rawTrend = dashboardData.trend || { x: [], y: [] };
   if (rawTrend.x && rawTrend.x.length > 0) {
     let tx = rawTrend.x;
@@ -2264,15 +2198,14 @@ function updateWidgets() {
         title: 'GPA',
         x: tx,
         y: ty,
-        style: { line: 'green' },
+        style: { line: 'white' },
       },
     ]);
   }
 
-  // 2. High-contrast btop-style Grade Distribution Box
+  // 2. Monochrome Grade Distribution Box
   const distData = (dashboardData.distribution && dashboardData.distribution.data) || [0, 0, 0, 0, 0];
   const distLabels = ['Výborný', 'Chválitebný', 'Dobrý', 'Dostatočný', 'Nedostatočný'];
-  const distColors = ['green-fg', 'cyan-fg', 'yellow-fg', 'magenta-fg', 'red-fg'];
   const maxCount = Math.max(...distData, 1);
   const totalMarks = distData.reduce((a, b) => a + b, 0);
 
@@ -2280,39 +2213,37 @@ function updateWidgets() {
   distData.forEach((count, i) => {
     const gradeNum = i + 1;
     const label = distLabels[i].padEnd(12, ' ');
-    const color = distColors[i];
     const pct = totalMarks > 0 ? ((count / totalMarks) * 100).toFixed(1) : '0.0';
     const barLen = Math.round((count / maxCount) * 22);
-    const barStr = barLen > 0 ? '█'.repeat(barLen) : '░';
+    const barStr = barLen > 0 ? '█'.repeat(barLen) : '·';
     const paddedBar = barStr.padEnd(23, ' ');
     const countStr = String(count).padStart(2, ' ');
     const pctStr = `(${pct}%)`.padStart(7, ' ');
-    distLines.push(` {bold}${gradeNum}{/bold}  ${label} {${color}}${paddedBar}{/${color}} {bold}${countStr}{/bold}  {cyan-fg}${pctStr}{/cyan-fg}`);
+    distLines.push(` {250-fg}${gradeNum}  ${label}{/250-fg} {white-fg}${paddedBar}{/white-fg} {bold}{white-fg}${countStr}{/white-fg}{/bold}  {244-fg}${pctStr}{/244-fg}`);
   });
   const passCount = distData[0] + distData[1] + distData[2] + distData[3];
   const passRate = totalMarks > 0 ? ((passCount / totalMarks) * 100).toFixed(1) : '0.0';
-  distLines.push(` {bold}SPOLU:{/bold} ${totalMarks} známok  │  {bold}PRIEMER:{/bold} {green-fg}${dashboardData.gpa || '-'}{/green-fg}  │  {bold}ÚSPEŠNOSŤ:{/bold} ${passRate}%`);
+  distLines.push(` {244-fg}SPOLU:{/244-fg} {white-fg}${totalMarks}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PRIEMER:{/244-fg} {white-fg}{bold}${dashboardData.gpa || '-'}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}ÚSPEŠNOSŤ:{/244-fg} {250-fg}${passRate}%{/250-fg}`);
   distributionBox.setContent(distLines.join('\n'));
 
   // 3. Live Monitor Timetable & Progress Calculation
   updateLiveProgress();
 
-  // 4. Mini Lunch Box (Monitor)
+  // 4. Mini Lunch Box (Monochrome)
   const lunch = dashboardData.lunches;
   if (lunch) {
     let lines = [];
-    const statusCol = lunch.ordered_meal ? '{green-fg}' : '{red-fg}';
-    lines.push(` {bold}STAV OBJEDNÁVKY:{/bold} ${statusCol}[${lunch.status || 'OBJEDNANÉ: ' + lunch.ordered_meal}]{/}`);
-    if (lunch.serving) lines.push(` {bold}VÝDAJ OBEDA:{/bold} {white-fg}${lunch.serving}{/white-fg}`);
+    lines.push(` {244-fg}STAV:{/244-fg} {white-fg}{bold}${lunch.status || 'OBJEDNANÉ: ' + lunch.ordered_meal}{/bold}{/white-fg}`);
+    if (lunch.serving) lines.push(` {244-fg}VÝDAJ:{/244-fg} {250-fg}${lunch.serving}{/250-fg}`);
     if (lunch.menus && lunch.menus.length > 0) {
       lunch.menus.slice(0, 3).forEach((m) => {
         const numStr = m.number ? `[${m.number}] ` : '';
-        lines.push(` • ${numStr}${m.name.slice(0, 48)}`);
+        lines.push(` {250-fg}• ${numStr}${m.name.slice(0, 48)}{/250-fg}`);
       });
     }
     miniLunchBox.setContent(lines.join('\n'));
   } else {
-    miniLunchBox.setContent(' {white-fg}Žiadne informácie o jedálni na dnešný deň.{/white-fg}');
+    miniLunchBox.setContent(' {244-fg}Žiadne informácie o jedálni na dnešný deň.{/244-fg}');
   }
 
   // 5. Mini Tasks Table (Monitor)
@@ -2583,7 +2514,17 @@ screen.key(['pagedown'], () => {
 screen.key(['down', 'j'], (_, key) => {
   if (isMessagesSearchActive() && key && key.name === 'j') return;
 
-  if (activeTabIndex === 1) {
+  if (activeTabIndex === 0) {
+    if (navFocus === 'topbar') {
+      navFocus = 'card';
+      updateHeader();
+      updateFooter();
+      updateMonitorFocusStyles();
+      const widgets = TAB_WIDGETS[0];
+      if (widgets && widgets[activeWidgetIndex]) widgets[activeWidgetIndex].focus();
+      screen.render();
+    }
+  } else if (activeTabIndex === 1) {
     if (navFocus === 'topbar') {
       navFocus = 'card';
       updateHeader();
@@ -2643,7 +2584,19 @@ screen.key(['down', 'j'], (_, key) => {
 screen.key(['up', 'k'], (_, key) => {
   if (isMessagesSearchActive() && key && key.name === 'k') return;
 
-  if (activeTabIndex === 1 && navFocus === 'card') {
+  if (activeTabIndex === 0 && navFocus === 'card') {
+    const widgets = TAB_WIDGETS[0];
+    const currentW = widgets && widgets[activeWidgetIndex];
+    const selectedRow = currentW && currentW.rows ? currentW.rows.selected : 0;
+    if (!selectedRow || selectedRow <= 0) {
+      navFocus = 'topbar';
+      updateHeader();
+      updateFooter();
+      updateMonitorFocusStyles();
+      headerBox.focus();
+      screen.render();
+    }
+  } else if (activeTabIndex === 1 && navFocus === 'card') {
     if (sidebarCursor > 0) {
       sidebarCursor -= 1;
       applySidebarItem(sidebarCursor, false);
@@ -2746,7 +2699,10 @@ screen.key(['tab'], () => {
   }
   const widgets = TAB_WIDGETS[activeTabIndex];
   if (widgets && widgets.length > 1) {
+    navFocus = 'card';
     activeWidgetIndex = (activeWidgetIndex + 1) % widgets.length;
+    updateHeader();
+    updateMonitorFocusStyles();
     widgets[activeWidgetIndex].focus();
     screen.render();
   }
@@ -2766,7 +2722,10 @@ screen.key(['S-tab'], () => {
   }
   const widgets = TAB_WIDGETS[activeTabIndex];
   if (widgets && widgets.length > 1) {
+    navFocus = 'card';
     activeWidgetIndex = (activeWidgetIndex - 1 + widgets.length) % widgets.length;
+    updateHeader();
+    updateMonitorFocusStyles();
     widgets[activeWidgetIndex].focus();
     screen.render();
   }
