@@ -61,18 +61,16 @@ const STYLES = {
 };
 
 // ==============================================================================
-// Top Header Box (Framed Master Header)
-// ==============================================================================
-
+// Top Header Box
 const headerBox = blessed.box({
   parent: screen,
   top: 0,
   left: 0,
   width: '100%',
-  height: 4,
+  height: 5,
   tags: true,
   border: { type: 'line', fg: 'grey' },
-  label: ' {bold}{white-fg}[ EDUPAGE BTOP MONITOR ]{/white-fg}{/bold} ',
+  label: ' [ EDUPAGE BTOP MONITOR ] ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -80,10 +78,7 @@ const headerBox = blessed.box({
   },
 });
 
-// ==============================================================================
-// Bottom Footer Box (Framed Commands Bar)
-// ==============================================================================
-
+// Bottom Footer Box
 const footerBox = blessed.box({
   parent: screen,
   bottom: 0,
@@ -92,7 +87,7 @@ const footerBox = blessed.box({
   height: 3,
   tags: true,
   border: { type: 'line', fg: 'grey' },
-  label: ' {bold}[ OVLÁDANIE & SKRATKY ]{/bold} ',
+  label: ' [ OVLÁDANIE & SKRATKY ] ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -101,13 +96,10 @@ const footerBox = blessed.box({
   content: ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
 });
 
-// ==============================================================================
 // Content Container (Between Header and Footer)
-// ==============================================================================
-
 const contentArea = blessed.box({
   parent: screen,
-  top: 4,
+  top: 5,
   left: 0,
   width: '100%',
   bottom: 3,
@@ -133,7 +125,7 @@ const monitorGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewMonitor }
 
 // 1. Marks Trend (Braille line)
 const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
-  label: ' {bold}{green-fg}■{/green-fg} [ VÝVOJ PRIEMERU (GPA TREND) ]{/bold} ',
+  label: ' [ VÝVOJ PRIEMERU (GPA TREND) ] ',
   showLegend: true,
   xPadding: 2,
   xLabelPadding: 2,
@@ -151,7 +143,7 @@ const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
 
 // 2. Marks Distribution (Bar chart)
 const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
-  label: ' {bold}{cyan-fg}■{/cyan-fg} [ ROZDELENIE ZNÁMOK (1 - 5) ]{/bold} ',
+  label: ' [ ROZDELENIE ZNÁMOK (1 - 5) ] ',
   barWidth: 5,
   barSpacing: 3,
   xOffset: 2,
@@ -166,7 +158,7 @@ const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
 
 // 3. Mini Lunch Box
 const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
-  label: ' {bold}{magenta-fg}■{/magenta-fg} [ DNEŠNÝ OBED ]{/bold} ',
+  label: ' [ DNEŠNÝ OBED ] ',
   tags: true,
   border: { type: 'line', fg: 'grey' },
   style: {
@@ -179,7 +171,7 @@ const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
 // 4. Timetable Table
 const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
   ...STYLES.table,
-  label: ' {bold}{yellow-fg}■{/yellow-fg} [ DNEŠNÝ ROZVRH HODÍN ]{/bold} ',
+  label: ' [ DNEŠNÝ ROZVRH HODÍN ] ',
   columnSpacing: 1,
   columnWidth: [3, 11, 23, 16, 9],
   headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
@@ -187,7 +179,7 @@ const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
 
 // 5. Current Lesson Progress Gauge
 const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
-  label: ' {bold}{green-fg}■{/green-fg} [ PRIEBEH AKTUÁLNEJ HODINY ]{/bold} ',
+  label: ' [ PRIEBEH HODINY / PRESTÁVKA ] ',
   stroke: 'green',
   fill: 'white',
   border: { type: 'line', fg: 'grey' },
@@ -199,7 +191,7 @@ const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
 // 6. Mini Tasks Table
 const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   ...STYLES.table,
-  label: ' {bold}{blue-fg}■{/blue-fg} [ AKTUÁLNE ZADANIA A PÍSOMKY ]{/bold} ',
+  label: ' [ AKTUÁLNE ZADANIA A PÍSOMKY ] ',
   columnSpacing: 1,
   columnWidth: [10, 10, 14, 20],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
@@ -218,37 +210,21 @@ const viewGrades = blessed.box({
   hidden: true,
 });
 
-const gradesSummaryBox = blessed.box({
-  parent: viewGrades,
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: 3,
-  tags: true,
-  border: { type: 'line', fg: 'grey' },
-  label: ' {bold}{cyan-fg}■{/cyan-fg} [ CELKOVÝ ŠTUDIJNÝ PREHĽAD ]{/bold} ',
-  style: {
-    border: { fg: 'grey' },
-    fg: 'white',
-    bg: 'black',
-  },
-});
-
 const gradesGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewGrades });
 
 // Subjects Table (Left, 4 cols)
-const subjectsTable = gradesGrid.set(3, 0, 9, 4, contrib.table, {
+const subjectsTable = gradesGrid.set(0, 0, 12, 4, contrib.table, {
   ...STYLES.table,
-  label: ' {bold}{yellow-fg}■{/yellow-fg} [ PREDMETY ]{/bold} ',
+  label: ' [ PREDMETY ] ',
   columnSpacing: 1,
   columnWidth: [8, 8, 8, 6],
   headers: ['PREDMET', 'PRIEMER', 'ÚSPECH', 'POČET'],
 });
 
 // Full Grades Table (Right, 8 cols)
-const fullGradesTable = gradesGrid.set(3, 4, 9, 8, contrib.table, {
+const fullGradesTable = gradesGrid.set(0, 4, 12, 8, contrib.table, {
   ...STYLES.table,
-  label: ' {bold}{green-fg}■{/green-fg} [ VŠETKY ZAPÍSANÉ ZNÁMKY (NAJNOVŠIE HORE) ]{/bold} ',
+  label: ' [ VŠETKY ZAPÍSANÉ ZNÁMKY ] ',
   columnSpacing: 1,
   columnWidth: [10, 8, 14, 5, 26, 20],
   headers: ['DÁTUM', 'PREDMET', 'ZNÁMKA', 'VÁHA', 'ZADANIE / UDALOSŤ', 'POZNÁMKA / UČITEĽ'],
@@ -267,30 +243,14 @@ const viewTimetable = blessed.box({
   hidden: true,
 });
 
-const timetableInfoBox = blessed.box({
+const fullTimetableTable = contrib.table({
   parent: viewTimetable,
   top: 0,
   left: 0,
   width: '100%',
-  height: 3,
-  tags: true,
-  border: { type: 'line', fg: 'grey' },
-  label: ' {bold}{yellow-fg}■{/yellow-fg} [ DENNÝ HARMONOGRAM ]{/bold} ',
-  style: {
-    border: { fg: 'grey' },
-    fg: 'white',
-    bg: 'black',
-  },
-});
-
-const fullTimetableTable = contrib.table({
-  parent: viewTimetable,
-  top: 3,
-  left: 0,
-  width: '100%',
-  height: '100%-3',
+  height: '100%',
   ...STYLES.table,
-  label: ' {bold}{green-fg}■{/green-fg} [ DNEŠNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ]{/bold} ',
+  label: ' [ KOMPLETNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ] ',
   columnSpacing: 2,
   columnWidth: [4, 13, 26, 20, 16, 11, 26],
   headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
@@ -317,7 +277,7 @@ const lunchesInfoBox = blessed.box({
   height: 4,
   tags: true,
   border: { type: 'line', fg: 'grey' },
-  label: ' {bold}{magenta-fg}■{/magenta-fg} [ ŠKOLSKÁ JEDÁLEŇ ]{/bold} ',
+  label: ' [ ŠKOLSKÁ JEDÁLEŇ ] ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -332,7 +292,7 @@ const fullLunchesTable = contrib.table({
   width: '100%',
   height: '100%-4',
   ...STYLES.table,
-  label: ' {bold}{cyan-fg}■{/cyan-fg} [ JEDÁLNY LÍSTOK NA DNES ]{/bold} ',
+  label: ' [ JEDÁLNY LÍSTOK NA DNES ] ',
   columnSpacing: 2,
   columnWidth: [4, 46, 8, 14, 11],
   headers: ['#', 'NÁZOV JEDLA', 'GRAMÁŽ', 'ALERGÉNY', 'OBJEDNANÉ'],
@@ -359,7 +319,7 @@ const tasksInfoBox = blessed.box({
   height: 3,
   tags: true,
   border: { type: 'line', fg: 'grey' },
-  label: ' {bold}{blue-fg}■{/blue-fg} [ PREHĽAD POVINNOSTÍ ]{/bold} ',
+  label: ' [ PREHĽAD POVINNOSTÍ ] ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -374,7 +334,7 @@ const fullTasksTable = contrib.table({
   width: '100%',
   height: '100%-3',
   ...STYLES.table,
-  label: ' {bold}{green-fg}■{/green-fg} [ ZOZNAM DOMÁCICH ÚLOH, TESTOV A ZADANÍ ]{/bold} ',
+  label: ' [ ZOZNAM DOMÁCICH ÚLOH, TESTOV A ZADANÍ ] ',
   columnSpacing: 2,
   columnWidth: [12, 14, 22, 50],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'TEXT ZADANIA'],
@@ -392,31 +352,26 @@ const TAB_WIDGETS = [
 ];
 let activeWidgetIndex = 0;
 
-// ==============================================================================
-// Interactive Border Focus Styling
-// ==============================================================================
-
-function setupFocusEffects(tableWidget, name, accentColor = 'green') {
+// Focus indicator styling
+function setupTableFocus(tableWidget) {
   if (!tableWidget || !tableWidget.rows) return;
   tableWidget.rows.on('focus', () => {
-    tableWidget.style.border.fg = accentColor;
-    tableWidget.setLabel(` {bold}{${accentColor}-fg}▶ [ ${name} ]{/${accentColor}-fg}{/bold} `);
+    tableWidget.style.border.fg = 'green';
     screen.render();
   });
   tableWidget.rows.on('blur', () => {
     tableWidget.style.border.fg = 'grey';
-    tableWidget.setLabel(` {bold}[ ${name} ]{/bold} `);
     screen.render();
   });
 }
 
-setupFocusEffects(timetableTable, 'DNEŠNÝ ROZVRH HODÍN', 'green');
-setupFocusEffects(miniTasksTable, 'AKTUÁLNE ZADANIA A PÍSOMKY', 'green');
-setupFocusEffects(subjectsTable, 'PREDMETY', 'green');
-setupFocusEffects(fullGradesTable, 'VŠETKY ZAPÍSANÉ ZNÁMKY', 'green');
-setupFocusEffects(fullTimetableTable, 'DNEŠNÝ ROZVRH HODÍN', 'green');
-setupFocusEffects(fullLunchesTable, 'JEDÁLNY LÍSTOK NA DNES', 'green');
-setupFocusEffects(fullTasksTable, 'ZOZNAM DOMÁCICH ÚLOH A ZADANÍ', 'green');
+// disabled
+// disabled
+// disabled
+// disabled
+// disabled
+// disabled
+// disabled
 
 // ==============================================================================
 // Tab Navigation
@@ -474,17 +429,17 @@ function updateHeader() {
     ? '{yellow-fg}[SYNCING...]{/yellow-fg}'
     : '{green-fg}[ONLINE]{/green-fg}';
 
-  headerBox.setLabel(` {bold}{white-fg}[ EDUPAGE BTOP MONITOR - ${school} ]{/white-fg}{/bold} `);
+  headerBox.setLabel(' [ EDUPAGE BTOP MONITOR - ' + school + ' ] ');
 
   const tabButtons = TAB_LABELS.map((label, idx) => {
     if (idx === activeTabIndex) {
       return `{black-bg}{white-fg}{bold}${label}{/bold}{/black-bg}`;
     }
     return `{grey-fg}[${label.trim()}]{/grey-fg}`;
-  }).join('  ');
+  }).join('   ');
 
   headerBox.setContent(
-    ` {bold}ŽIAK:{/bold} ${user}  │  {bold}PRIEMER (GPA):{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}{bold}${standing}{/bold}{/}  │  {bold}ZNÁMOK:{/bold} ${totalMarks}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
+    ` {bold}POUŽÍVATEĽ:{/bold} ${user}  │  {bold}PRIEMER (GPA):{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}{bold}${standing}{/bold}{/}  │  {bold}ZNÁMOK:{/bold} ${totalMarks}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
     ` {bold}KARTY:{/bold}  ${tabButtons}`
   );
 }
@@ -544,9 +499,9 @@ function updateWidgets() {
   // 4. Lesson Progress Gauge
   const prog = dashboardData.lesson_progress || 0;
   if (currentLesson) {
-    lessonGauge.setLabel(` {bold}{green-fg}■{/green-fg} [ PREBIEHA: ${currentLesson.subject} (${prog}%) ]{/bold} `);
+    lessonGauge.setLabel(' [ PREBIEHA: ' + currentLesson.subject + ' (' + prog + '%) ] ');
   } else {
-    lessonGauge.setLabel(` {bold}{yellow-fg}■{/yellow-fg} [ PRESTÁVKA / VOĽNO (DO ${dashboardData.next_bell || '-'}) ]{/bold} `);
+    lessonGauge.setLabel(' [ PRESTÁVKA / VOĽNO (DO ' + (dashboardData.next_bell || '-') + ') ] ');
   }
   lessonGauge.setPercent(prog);
 
@@ -581,13 +536,6 @@ function updateWidgets() {
   });
 
   // 7. Grades View
-  gradesSummaryBox.setContent(
-    ` {bold}POČET PREDMETOV:{/bold} ${dashboardData.subjects ? dashboardData.subjects.length : 0}  │  ` +
-    ` {bold}ZAPÍSANÝCH ZNÁMOK:{/bold} ${dashboardData.total_marks || 0}  │  ` +
-    ` {bold}VÝSLEDNÝ PRIEMER:{/bold} {green-fg}{bold}${dashboardData.gpa || '-'}{/bold}{/green-fg}  │  ` +
-    ` {bold}CELKOVÝ PROSPECH:{/bold} {cyan-fg}{bold}${dashboardData.standing || '-'}{/bold}{/cyan-fg}`
-  );
-
   const subjRows = (dashboardData.subjects || []).map((s) => [
     s.name || '-',
     s.avg || '-',
@@ -613,13 +561,6 @@ function updateWidgets() {
   });
 
   // 8. Timetable View
-  const doneCount = ttList.filter(l => l.status === 'DONE').length;
-  const remCount = Math.max(0, ttList.length - doneCount);
-  timetableInfoBox.setContent(
-    ` {bold}DÁTUM:{/bold} ${dashboardData.date || '-'}  │  {bold}POČET HODÍN DNES:{/bold} ${ttList.length}  │  ` +
-    ` {bold}STAV:{/bold} ${doneCount} ukončená, ${remCount} zostávajúce  │  {bold}ZVONENIE:{/bold} {yellow-fg}${dashboardData.next_bell || '-'}{/yellow-fg}`
-  );
-
   const fullTtRows = ttList.map((l) => [
     l.period || '-',
     l.time || '-',
