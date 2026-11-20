@@ -225,7 +225,8 @@ def authenticate(
             return None
 
     edupage = Edupage()
-    print(colorize(f"[...] Connecting to EduPage [{subdomain}.edupage.org]...", COLOR_DIM, use_color))
+    if interactive:
+        print(colorize(f"[...] Connecting to EduPage [{subdomain}.edupage.org]...", COLOR_DIM, use_color), file=sys.stderr)
 
     try:
         second_factor = edupage.login(username, password, subdomain)
@@ -233,17 +234,17 @@ def authenticate(
             handle_two_factor(second_factor, edupage, use_color=use_color)
 
     except BadCredentialsException:
-        print(colorize("[ERR] Bad credentials or invalid school subdomain.", COLOR_RED, use_color))
+        print(colorize("[ERR] Bad credentials or invalid school subdomain.", COLOR_RED, use_color), file=sys.stderr)
         return None
     except CaptchaException:
-        print(colorize("[ERR] Captcha challenge triggered. Log in via web browser first.", COLOR_RED, use_color))
+        print(colorize("[ERR] Captcha challenge triggered. Log in via web browser first.", COLOR_RED, use_color), file=sys.stderr)
         return None
     except Exception as e:
-        print(colorize(f"[ERR] Login failed: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Login failed: {e}", COLOR_RED, use_color), file=sys.stderr)
         return None
 
     if not edupage.is_logged_in:
-        print(colorize("[ERR] Authentication failed.", COLOR_RED, use_color))
+        print(colorize("[ERR] Authentication failed.", COLOR_RED, use_color), file=sys.stderr)
         return None
 
     # Automaticky zapamätať prihlasovacie meno a školu (a uložiť heslo ak je zadané)
@@ -325,6 +326,56 @@ def format_comment_and_teacher(grade: EduGrade) -> str:
     return " | ".join(parts) if parts else "-"
 
 
+def parse_slovak_grade(g: EduGrade) -> Optional[float]:
+    """Prevedie známku (číslo, percento, body, plus/mínus) na slovenské známkové hodnotenie 1.0 - 5.0."""
+    if g.grade_n is not None:
+        val_str = str(g.grade_n).strip()
+        if val_str.endswith("-"):
+            try:
+                base = float(val_str[:-1])
+                if 1.0 <= base <= 4.0:
+                    return base + 0.5
+            except ValueError:
+                pass
+        elif val_str.endswith("+"):
+            try:
+                base = float(val_str[:-1])
+                if 2.0 <= base <= 5.0:
+                    return max(1.0, base - 0.25)
+            except ValueError:
+                pass
+        else:
+            try:
+                num = float(val_str)
+                if 1.0 <= num <= 5.0:
+                    return num
+            except ValueError:
+                pass
+
+    pct = g.percent
+    if pct is None and g.grade_n is not None:
+        s = str(g.grade_n).strip()
+        if s.endswith("%"):
+            try:
+                pct = float(s[:-1])
+            except ValueError:
+                pass
+
+    if pct is not None and 0.0 <= pct <= 100.0:
+        if pct >= 90.0:
+            return 1.0
+        elif pct >= 75.0:
+            return 2.0
+        elif pct >= 60.0:
+            return 3.0
+        elif pct >= 50.0:
+            return 4.0
+        else:
+            return 5.0
+
+    return None
+
+
 def calculate_subject_stats(grades: List[EduGrade]) -> Dict[str, Any]:
     """Vypočíta štatistiku (vážený priemer, percentá) pre daný predmet."""
     weighted_sum = 0.0
@@ -345,9 +396,9 @@ def calculate_subject_stats(grades: List[EduGrade]) -> Dict[str, Any]:
 
         try:
             val_str = str(g.grade_n).strip()
-            if val_str.endswith("-") and val_str[:-1].isdigit():
+            if val_str.endswith("-"):
                 num = float(val_str[:-1]) + 0.5
-            elif val_str.endswith("+") and val_str[:-1].isdigit():
+            elif val_str.endswith("+"):
                 num = max(1.0, float(val_str[:-1]) - 0.25)
             else:
                 num = float(val_str)
@@ -1220,6 +1271,7 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "next_bell": "-",
         "lesson_progress": 0,
         "gpa": "-",
+        "standing": "-",
         "total_marks": 0,
         "trend": {"x": [], "y": []},
         "distribution": {"titles": ["1", "2", "3", "4", "5"], "data": [0, 0, 0, 0, 0]},
@@ -1248,9 +1300,19 @@ def export_dashboard_json(edupage: Edupage) -> dict:
             )
             next_found = False
             for l in sorted_lessons:
+                # Filter out phantom/empty lessons (e.g. cancelled placeholder periods with no subject)
+                if l.subject is None and (l.is_cancelled or not l.start_time):
+                    continue
+                if l.is_cancelled and not l.subject and not l.curriculum:
+                    continue
+
                 p_str = str(l.period) if l.period is not None else "-"
                 t_str = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
                 s_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Free period")
+                if l.groups:
+                    group_str = ", ".join(l.groups)
+                    s_name = f"{s_name} ({group_str})"
+
                 r_str = ", ".join(c.name for c in l.classrooms) if l.classrooms else "-"
                 tc_str = ", ".join(t.name for t in l.teachers) if l.teachers else "-"
                 topic_str = l.curriculum or "-"
@@ -1267,6 +1329,8 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                         elapsed_secs = (datetime.combine(date.today(), now_time) - datetime.combine(date.today(), l.start_time)).total_seconds()
                         if total_secs > 0:
                             data["lesson_progress"] = max(0, min(100, int(elapsed_secs / total_secs * 100)))
+                    elif now_time > l.end_time:
+                        status_str = "DONE"
                     elif now_time < l.start_time and not next_found:
                         status_str = "NEXT"
                         next_found = True
@@ -1287,9 +1351,6 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     try:
         grades = edupage.get_grades()
         data["total_marks"] = len(grades)
-        stats = calculate_subject_stats(grades)
-        if stats["avg_grade"] is not None:
-            data["gpa"] = f"{stats['avg_grade']:.2f}"
 
         dist = [0, 0, 0, 0, 0]
         chronological_grades = sorted([g for g in grades if g.date], key=lambda g: g.date)
@@ -1300,17 +1361,9 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         trend_y = []
 
         for g in chronological_grades:
-            val_str = str(g.grade_n).strip()
-            num = None
-            if val_str.isdigit():
-                num = int(val_str)
-            elif val_str.endswith("-") and val_str[:-1].isdigit():
-                num = float(val_str[:-1]) + 0.5
-            elif val_str.endswith("+") and val_str[:-1].isdigit():
-                num = float(val_str[:-1]) - 0.25
-
-            if num is not None and 1 <= round(num) <= 5:
-                dist[round(num) - 1] += 1
+            num = parse_slovak_grade(g)
+            if num is not None and 1.0 <= num <= 5.0:
+                dist[min(4, max(0, int(round(num)) - 1))] += 1
                 w = g.importance if (g.importance and g.importance > 0) else 1.0
                 cum_weighted_sum += num * w
                 cum_weight_total += w
@@ -1320,9 +1373,9 @@ def export_dashboard_json(edupage: Edupage) -> dict:
 
         data["distribution"]["data"] = dist
 
-        if len(trend_x) > 12:
-            step = len(trend_x) / 12
-            sampled_indices = [int(i * step) for i in range(12)]
+        if len(trend_x) > 10:
+            step = (len(trend_x) - 1) / 9
+            sampled_indices = [int(i * step) for i in range(10)]
             trend_x = [trend_x[i] for i in sampled_indices]
             trend_y = [trend_y[i] for i in sampled_indices]
         data["trend"]["x"] = trend_x
@@ -1332,13 +1385,59 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         for g in grades:
             by_subj.setdefault(g.subject_name or "Unknown", []).append(g)
 
+        subject_averages = []
         for s_name, glist in sorted(by_subj.items(), key=lambda x: x[0]):
             s_stat = calculate_subject_stats(glist)
+            subj_avg = None
+            if s_stat["avg_grade"] is not None:
+                subj_avg = s_stat["avg_grade"]
+                avg_display = f"{subj_avg:.2f}"
+            elif s_stat["avg_percent"] is not None:
+                pct = s_stat["avg_percent"]
+                if pct >= 90.0:
+                    subj_avg = 1.0
+                elif pct >= 75.0:
+                    subj_avg = 2.0
+                elif pct >= 60.0:
+                    subj_avg = 3.0
+                elif pct >= 50.0:
+                    subj_avg = 4.0
+                else:
+                    subj_avg = 5.0
+                avg_display = f"{subj_avg:.2f}"
+            else:
+                avg_display = "-"
+
+            if subj_avg is not None:
+                subject_averages.append(subj_avg)
+
+            pct_display = f"{s_stat['avg_percent']:.1f}%" if s_stat["avg_percent"] is not None else "-"
             data["subjects"].append({
                 "name": s_name,
                 "count": len(glist),
-                "avg": f"{s_stat['avg_grade']:.2f}" if s_stat["avg_grade"] is not None else "-",
+                "avg": avg_display,
+                "percent": pct_display,
             })
+
+        # Slovak GPA calculation: arithmetic mean of subject averages
+        if subject_averages:
+            overall_gpa = round(sum(subject_averages) / len(subject_averages), 2)
+            data["gpa"] = f"{overall_gpa:.2f}"
+
+            has_five = any(avg >= 4.5 for avg in subject_averages)
+            has_four = any(avg >= 3.5 for avg in subject_averages)
+            has_three = any(avg >= 2.5 for avg in subject_averages)
+
+            if has_five:
+                data["standing"] = "Neprospel"
+            elif overall_gpa <= 1.50 and not has_three:
+                data["standing"] = "Prospel s vyznamenaním"
+            elif overall_gpa <= 2.00 and not has_four:
+                data["standing"] = "Prospel veľmi dobre"
+            else:
+                data["standing"] = "Prospel"
+        else:
+            data["standing"] = "Nehodnotený"
 
         for g in sorted(grades, key=lambda g: g.date if g.date else datetime.min, reverse=True):
             data["all_grades"].append({
