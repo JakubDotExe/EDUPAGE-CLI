@@ -87,16 +87,17 @@ const screen = blessed.screen({
 });
 
 // Navigation State
-const TABS = ['monitor', 'timetable', 'grades', 'lunches', 'tasks'];
+const TABS = ['monitor', 'timetable', 'grades', 'messages', 'lunches'];
 const TAB_LABELS = [
   ' 1: MONITOR ',
   ' 2: ROZVRH ',
   ' 3: ZNÁMKY ',
-  ' 4: OBEDY ',
-  ' 5: ÚLOHY ',
+  ' 4: SPRÁVY ',
+  ' 5: OBEDY ',
 ];
 let activeTabIndex = 0;
 let navFocus = 'topbar'; // 'topbar' | 'card'
+let msgSubFocus = 'feed'; // 'feed' | 'filters' | 'search' (for Tab 4: SPRÁVY)
 let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
 
@@ -393,14 +394,76 @@ const gradesMainBox = blessed.box({
 });
 
 // ==============================================================================
-// TAB 4, 5: EMPTY PLACEHOLDERS
+// TAB 4: SPRÁVY (Timeline Notifications, Left Checkbox Filters & Top Search Bar)
 // ==============================================================================
 
-const viewLunches = createEmptyTabPlaceholder('4: OBEDY');
-const viewTasks = createEmptyTabPlaceholder('5: ÚLOHY');
+const viewMessages = blessed.box({
+  parent: contentArea,
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: '100%',
+  hidden: true,
+});
+
+const messagesSidebar = blessed.box({
+  parent: viewMessages,
+  top: 0,
+  left: 0,
+  width: SIDEBAR_WIDTH,
+  height: '100%',
+  tags: true,
+  border: { type: 'line', fg: 'blue' },
+  label: ' [ FILTRE OZNÁMENÍ ] ',
+  style: {
+    border: { fg: 'blue' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const messagesSearchBox = blessed.box({
+  parent: viewMessages,
+  top: 0,
+  left: SIDEBAR_WIDTH,
+  width: `100%-${SIDEBAR_WIDTH}`,
+  height: 3,
+  tags: true,
+  border: { type: 'line', fg: 'cyan' },
+  label: ' [ VYHĽADÁVANIE SPRÁV A PREDMETOV (/ alebo f) ] ',
+  style: {
+    border: { fg: 'cyan' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const messagesFeedBox = blessed.box({
+  parent: viewMessages,
+  top: 3,
+  left: SIDEBAR_WIDTH,
+  width: `100%-${SIDEBAR_WIDTH}`,
+  bottom: 0,
+  tags: true,
+  scrollable: true,
+  alwaysScroll: true,
+  border: { type: 'line', fg: 'green' },
+  label: ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ ] ',
+  style: {
+    border: { fg: 'green' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+// ==============================================================================
+// TAB 5: EMPTY PLACEHOLDER
+// ==============================================================================
+
+const viewLunches = createEmptyTabPlaceholder('5: OBEDY');
 
 // View Containers & Focusable Widgets Registry
-const VIEW_CONTAINERS = [viewMonitor, viewTimetable, viewGrades, viewLunches, viewTasks];
+const VIEW_CONTAINERS = [viewMonitor, viewTimetable, viewGrades, viewMessages, viewLunches];
 
 const TAB_WIDGETS = [
   [timetableTable, miniTasksTable],
@@ -416,23 +479,37 @@ let activeWidgetIndex = 0;
 // ==============================================================================
 
 function hasCardSidebar(tabIdx = activeTabIndex) {
-  return tabIdx === 1 || tabIdx === 2;
+  return tabIdx === 1 || tabIdx === 2 || tabIdx === 3;
 }
 
 function updateFooter() {
   if (hasCardSidebar(activeTabIndex)) {
     if (navFocus === 'topbar') {
       footerBox.setContent(
-        ' {bold}{cyan-fg}[HORNÁ LIŠTA]{/cyan-fg}{/bold}  {bold}[1-5 / ← / →]{/bold} Karty  │  {bold}[↓]{/bold} Vstúpiť do bočného panela karty  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec'
+        ' {bold}{cyan-fg}[HORNÁ LIŠTA]{/cyan-fg}{/bold}  {bold}[1-5 / ← / →]{/bold} Karty  │  {bold}[↓]{/bold} Vstúpiť do karty  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec'
       );
     } else if (activeTabIndex === 1) {
       footerBox.setContent(
         ' {bold}{yellow-fg}[ĽAVÁ LIŠTA - ROZVRH]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Voľba položky ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[← / → / Enter]{/bold} Prepínať Aktuálny/Stály  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q]{/bold} Koniec'
       );
-    } else {
+    } else if (activeTabIndex === 2) {
       footerBox.setContent(
         ' {bold}{yellow-fg}[ĽAVÁ LIŠTA - ZNÁMKY]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Prehľad / Pochvaly / Predmety ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[← / →]{/bold} Rolovať tabuľku  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q]{/bold} Koniec'
       );
+    } else if (activeTabIndex === 3) {
+      if (msgSubFocus === 'search') {
+        footerBox.setContent(
+          ' {bold}{yellow-fg}[VYHĽADÁVANIE AKTÍVNE]{/yellow-fg}{/bold}  {bold}[Píš text]{/bold} Hľadať v správach / predmetoch  │  {bold}[Backspace]{/bold} Zmazať znak  │  {bold}[Enter / ↓]{/bold} Do zoznamu správ  │  {bold}[↑ / Esc]{/bold} Späť hore'
+        );
+      } else if (msgSubFocus === 'filters') {
+        footerBox.setContent(
+          ' {bold}{yellow-fg}[FILTRE VĽAVO]{/yellow-fg}{/bold}  {bold}[↑ / ↓]{/bold} Pohyb ({bold}↑ hore{/bold} = späť na karty)  │  {bold}[Space / Enter]{/bold} Začiarknuť [x]/[ ]  │  {bold}[→ / Tab]{/bold} Do zoznamu správ  │  {bold}[/]{/bold} Hľadať'
+        );
+      } else {
+        footerBox.setContent(
+          ' {bold}{green-fg}[ZOZNAM SPRÁV]{/green-fg}{/bold}  {bold}[↑ / ↓ / PgUp / PgDn]{/bold} Skrolovať správy ({bold}↑ navrchu{/bold} = do vyhľadávania)  │  {bold}[← / Tab]{/bold} Filtre vľavo  │  {bold}[/]{/bold} Hľadať  │  {bold}[r]{/bold} Obnoviť'
+        );
+      }
     }
   } else {
     footerBox.setContent(
@@ -448,6 +525,9 @@ function switchTab(index) {
   activeTabIndex = index;
   activeWidgetIndex = 0;
   navFocus = 'topbar';
+  if (activeTabIndex === 3) {
+    msgSubFocus = 'feed';
+  }
 
   VIEW_CONTAINERS.forEach((c, idx) => {
     if (idx === activeTabIndex) {
@@ -466,6 +546,9 @@ function switchTab(index) {
   } else if (activeTabIndex === 2) {
     renderGradesCard();
     gradesSidebar.focus();
+  } else if (activeTabIndex === 3) {
+    renderMessagesCard();
+    messagesFeedBox.focus();
   } else {
     const currentTabWidgets = TAB_WIDGETS[activeTabIndex];
     if (currentTabWidgets && currentTabWidgets.length > 0) {
@@ -1781,6 +1864,386 @@ function renderGradesCard() {
   }
 }
 
+// ==============================================================================
+// TAB 4 (SPRÁVY): Left Checkbox Filters, Top Search Bar & Scrollable Day-Divided Feed
+// ==============================================================================
+
+const MESSAGE_CATEGORIES = [
+  { key: 'SPRAVY', label: 'Správy a oznamy', badgeColor: 'cyan-fg', borderColor: 'cyan-fg' },
+  { key: 'ZNAMKY', label: 'Známky a pochvaly', badgeColor: 'green-fg', borderColor: 'green-fg' },
+  { key: 'SUPLOVANIE', label: 'Suplovanie a rozvrh', badgeColor: 'yellow-fg', borderColor: 'yellow-fg' },
+  { key: 'ULOHY', label: 'Úlohy a písomky', badgeColor: 'magenta-fg', borderColor: 'magenta-fg' },
+  { key: 'DOCHADZKA', label: 'Dochádzka a príchod', badgeColor: 'cyan-fg', borderColor: 'cyan-fg' },
+  { key: 'OSTATNE', label: 'Jedáleň a ostatné', badgeColor: 'white-fg', borderColor: 'white-fg' },
+];
+
+let msgFilterChecked = {
+  SPRAVY: true,
+  ZNAMKY: true,
+  SUPLOVANIE: true,
+  ULOHY: true,
+  DOCHADZKA: true,
+  OSTATNE: true,
+};
+let msgFilterCursor = 0; // 0 = VŠETKY TYPY, 1..6 = jednotlivých 6 kategórií, 7 = VYČISTIŤ HĽADANIE
+let msgSearchQuery = '';
+
+function getCategoryMeta(catKey) {
+  return MESSAGE_CATEGORIES.find((c) => c.key === catKey) || MESSAGE_CATEGORIES[0];
+}
+
+function getAllNotificationsList() {
+  const raw = dashboardData.notifications;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw;
+  }
+  // Fallback if notifications array isn't populated yet
+  const fallback = [];
+  (dashboardData.tasks || []).forEach((t, i) => {
+    fallback.push({
+      id: `task_${i}`,
+      date: t.date || '-',
+      time: '08:00',
+      category: 'ULOHY',
+      badge: t.type || 'ÚLOHA',
+      author: t.author || 'Učiteľ',
+      recipient: '',
+      subject: '',
+      due_date: t.date || '',
+      text: t.text || '-',
+      attachments: [],
+    });
+  });
+  (dashboardData.all_grades || []).slice(0, 15).forEach((g, i) => {
+    fallback.push({
+      id: `grd_${i}`,
+      date: g.date || '-',
+      time: '12:00',
+      category: 'ZNAMKY',
+      badge: 'ZNÁMKA',
+      author: g.teacher || 'Učiteľ',
+      recipient: '',
+      subject: g.subject || '',
+      due_date: '',
+      text: `Známka ${g.grade} (${g.title || 'Hodnotenie'})`,
+      attachments: [],
+    });
+  });
+  return fallback;
+}
+
+function getFilteredNotifications() {
+  const all = getAllNotificationsList();
+  const q = msgSearchQuery.trim().toLowerCase();
+
+  return all.filter((n) => {
+    const cat = n.category || 'OSTATNE';
+    if (!msgFilterChecked[cat]) return false;
+
+    if (!q) return true;
+    const hay = [
+      n.text || '',
+      n.subject || '',
+      n.author || '',
+      n.badge || '',
+      n.recipient || '',
+      n.date || '',
+    ].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function formatDaySeparatorTitle(dateIso) {
+  if (!dateIso || dateIso === '-') return 'NEZNÁMY DÁTUM';
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const parts = dateIso.split('-').map(Number);
+  if (parts.length !== 3 || isNaN(parts[0])) return dateIso;
+
+  const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+  const dayNames = ['NEDEĽA', 'PONDELOK', 'UTOROK', 'STREDA', 'ŠTVRTOK', 'PIATOK', 'SOBOTA'];
+  const dayName = dayNames[dt.getDay()] || '';
+  const dFmt = `${String(parts[2]).padStart(2, '0')}.${String(parts[1]).padStart(2, '0')}.${parts[0]}`;
+
+  if (dateIso === todayIso) {
+    return `DNES — ${dayName} ${dFmt}`;
+  }
+
+  const tParts = todayIso.split('-').map(Number);
+  if (tParts.length === 3) {
+    const todayDt = new Date(tParts[0], tParts[1] - 1, tParts[2]);
+    const diffDays = Math.round((todayDt - dt) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+      return `VČERA — ${dayName} ${dFmt}`;
+    }
+  }
+  return `${dayName} — ${dFmt}`;
+}
+
+function wrapTextToLines(text, maxLineWidth) {
+  const width = Math.max(24, maxLineWidth);
+  const paragraphs = String(text || '-').split('\n');
+  const wrapped = [];
+
+  paragraphs.forEach((para) => {
+    const trimmed = para.replace(/\s+/g, ' ').trim();
+    if (!trimmed) return;
+    const words = trimmed.split(' ');
+    let currentLine = '';
+
+    words.forEach((word) => {
+      if (word.length > width) {
+        if (currentLine) {
+          wrapped.push(currentLine);
+          currentLine = '';
+        }
+        for (let i = 0; i < word.length; i += width) {
+          wrapped.push(word.slice(i, i + width));
+        }
+      } else if (!currentLine) {
+        currentLine = word;
+      } else if (currentLine.length + 1 + word.length <= width) {
+        currentLine += ' ' + word;
+      } else {
+        wrapped.push(currentLine);
+        currentLine = word;
+      }
+    });
+
+    if (currentLine) {
+      wrapped.push(currentLine);
+    }
+  });
+
+  return wrapped.length > 0 ? wrapped : ['-'];
+}
+
+function toggleMessageFilterAtCursor() {
+  if (msgFilterCursor === 0) {
+    const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
+    const nextState = !allChecked;
+    MESSAGE_CATEGORIES.forEach((c) => {
+      msgFilterChecked[c.key] = nextState;
+    });
+  } else if (msgFilterCursor >= 1 && msgFilterCursor <= MESSAGE_CATEGORIES.length) {
+    const cat = MESSAGE_CATEGORIES[msgFilterCursor - 1];
+    msgFilterChecked[cat.key] = !msgFilterChecked[cat.key];
+  } else if (msgFilterCursor === MESSAGE_CATEGORIES.length + 1) {
+    msgSearchQuery = '';
+    MESSAGE_CATEGORIES.forEach((c) => {
+      msgFilterChecked[c.key] = true;
+    });
+  }
+  if (typeof messagesFeedBox.scrollTo === 'function') {
+    messagesFeedBox.scrollTo(0);
+  }
+}
+
+function renderMessagesSidebar() {
+  const isFilterFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'filters';
+  messagesSidebar.style.border.fg = isFilterFocused ? 'yellow' : 'cyan';
+  messagesSidebar.setLabel(
+    isFilterFocused ? ' [ FILTRE OZNÁMENÍ (AKTÍVNE) ] ' : ' [ FILTRE OZNÁMENÍ (← / Tab) ] '
+  );
+
+  const all = getAllNotificationsList();
+  const filtered = getFilteredNotifications();
+  const countsByCat = {};
+  MESSAGE_CATEGORIES.forEach((c) => {
+    countsByCat[c.key] = 0;
+  });
+  all.forEach((n) => {
+    const k = n.category || 'OSTATNE';
+    countsByCat[k] = (countsByCat[k] || 0) + 1;
+  });
+
+  const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
+
+  const lines = [];
+  lines.push(' {bold}{cyan-fg}══ PREHĽAD NOTIFIKÁCIÍ ══{/cyan-fg}{/bold}');
+  lines.push(` {blue-bg}{white-fg}{bold}${padRawLine(` ● ZOBRAZENÉ: ${filtered.length} / ${all.length}`, 30)}{/bold}{/white-fg}{/blue-bg}`);
+  if (msgSearchQuery.trim()) {
+    lines.push(` {yellow-fg}{bold}${fitPlain(`Filter: "${msgSearchQuery.trim()}"`, 30)}{/bold}{/yellow-fg}`);
+  } else {
+    lines.push(' {white-fg}Textový filter: žiadny{/white-fg}');
+  }
+  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
+  lines.push(' {bold}{white-fg}TYPY OZNÁMENÍ (Space/Enter):{/white-fg}{/bold}');
+  lines.push('');
+
+  // Row 0: VŠETKY TYPY
+  const row0Focused = isFilterFocused && msgFilterCursor === 0;
+  const markAll = allChecked ? '[x]' : '[ ]';
+  const row0Text = ` ${row0Focused ? '▶' : ' '} ${markAll} VŠETKY TYPY (${all.length})`;
+  if (row0Focused) {
+    lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/white-fg}{/blue-bg}`);
+  } else if (allChecked) {
+    lines.push(`{green-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/green-fg}`);
+  } else {
+    lines.push(`{white-fg}${padRawLine(row0Text, 32)}{/white-fg}`);
+  }
+  lines.push('');
+
+  // Rows 1..6: Individual Category Checkboxes with generous spacing
+  MESSAGE_CATEGORIES.forEach((cat, idx) => {
+    const itemIdx = idx + 1;
+    const isHere = isFilterFocused && msgFilterCursor === itemIdx;
+    const checked = !!msgFilterChecked[cat.key];
+    const boxMark = checked ? '[x]' : '[ ]';
+    const cnt = countsByCat[cat.key] || 0;
+    const labelPart = fitPlain(cat.label, 19).padEnd(19, ' ');
+    const rawRow = ` ${isHere ? '▶' : ' '} ${boxMark} ${labelPart} (${String(cnt).padStart(2, ' ')})`;
+
+    if (isHere) {
+      lines.push(`{blue-bg}{white-fg}{bold}${padRawLine(rawRow, 32)}{/bold}{/white-fg}{/blue-bg}`);
+    } else if (checked) {
+      lines.push(`{${cat.badgeColor}}{bold}   [x]{/bold}{/${cat.badgeColor}} {white-fg}${labelPart}{/white-fg} {cyan-fg}(${String(cnt).padStart(2, ' ')}){/cyan-fg}`);
+    } else {
+      lines.push(`{white-fg}   [ ] ${labelPart} (${String(cnt).padStart(2, ' ')}){/white-fg}`);
+    }
+    lines.push('');
+  });
+
+  // Row 7: Reset Filters & Search
+  const resetIdx = MESSAGE_CATEGORIES.length + 1;
+  const resetFocused = isFilterFocused && msgFilterCursor === resetIdx;
+  const resetText = ` ${resetFocused ? '▶' : ' '} [↺] Zrušiť filtre & hľadanie`;
+  if (resetFocused) {
+    lines.push(`{blue-bg}{yellow-fg}{bold}${padRawLine(resetText, 32)}{/bold}{/yellow-fg}{/blue-bg}`);
+  } else {
+    lines.push(`{yellow-fg}${padRawLine(resetText, 32)}{/yellow-fg}`);
+  }
+
+  lines.push('{cyan-fg}────────────────────────────────{/cyan-fg}');
+  lines.push(' {bold}{white-fg}OVLÁDANIE KARTY:{/white-fg}{/bold}');
+  lines.push(' {cyan-fg}[Space/Enter]{/cyan-fg} {white-fg}Začiarknuť [x]{/white-fg}');
+  lines.push(' {cyan-fg}[← / → / Tab]{/cyan-fg} {white-fg}Filtre ⇄ Správy{/white-fg}');
+  lines.push(' {cyan-fg}[/ alebo f]{/cyan-fg}   {white-fg}Hľadať text{/white-fg}');
+  lines.push(' {cyan-fg}[↑ / ↓]{/cyan-fg}       {white-fg}Skrolovať nižšie{/white-fg}');
+
+  messagesSidebar.setContent(lines.join('\n'));
+}
+
+function renderMessagesSearchBox() {
+  const isSearchFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'search';
+  messagesSearchBox.style.border.fg = isSearchFocused ? 'yellow' : 'cyan';
+  messagesSearchBox.setLabel(
+    isSearchFocused
+      ? ' [ VYHĽADÁVANIE AKTÍVNE — PÍŠ TEXT (Enter/↓ = do správ, Backspace = zmazať) ] '
+      : ' [ VYHĽADÁVANIE SPRÁV, PREDMETOV A UČITEĽOV (Stlač / alebo f) ] '
+  );
+
+  const filteredCount = getFilteredNotifications().length;
+  const totalCount = getAllNotificationsList().length;
+
+  let queryDisplay = '';
+  if (isSearchFocused) {
+    queryDisplay = `{blue-bg}{white-fg}{bold} 🔍 HĽADAŤ: ${msgSearchQuery}█ {/bold}{/white-fg}{/blue-bg}`;
+  } else if (msgSearchQuery.trim()) {
+    queryDisplay = `{yellow-fg}{bold} 🔍 HĽADANÝ VÝRAZ: "${msgSearchQuery}" {/bold}{/yellow-fg}  {white-fg}(Stlač {/white-fg}{cyan-fg}{bold}/{/bold}{/cyan-fg}{white-fg} pre úpravu){/white-fg}`;
+  } else {
+    queryDisplay = `{white-fg} 🔍 Zadaj text správy, skratku predmetu (napr. SJL, NEJ, IVI) alebo meno učiteľa... {/white-fg}{cyan-fg}[Stlač /]{/cyan-fg}`;
+  }
+
+  const rightStat = `{green-fg}{bold}Zobrazené: ${filteredCount} z ${totalCount} správ{/bold}{/green-fg}`;
+  messagesSearchBox.setContent(` ${queryDisplay}    │    ${rightStat}`);
+}
+
+function renderMessagesFeed() {
+  const isFeedFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'feed';
+  messagesFeedBox.style.border.fg = isFeedFocused ? 'yellow' : 'green';
+  messagesFeedBox.setLabel(
+    isFeedFocused
+      ? ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ (AKTÍVNE SKROLOVANIE ↑/↓/PgUp/PgDn) ] '
+      : ' [ CHRONOLÓGIA SPRÁV A NOTIFIKÁCIÍ (→ / Tab = skrolovať) ] '
+  );
+
+  const boxWidth = messagesFeedBox.width && messagesFeedBox.width > 45
+    ? messagesFeedBox.width
+    : Math.max(82, screen.width - SIDEBAR_WIDTH);
+  const innerW = Math.max(76, boxWidth - 6);
+
+  const items = getFilteredNotifications();
+  const out = [];
+
+  if (items.length === 0) {
+    out.push('');
+    out.push(` {yellow-fg}{bold}Žiadne notifikácie nezodpovedajú zvoleným filtrom alebo hľadanému výrazu "${msgSearchQuery}".{/bold}{/yellow-fg}`);
+    out.push(' {white-fg}• Skús v ľavom paneli začiarknuť viac typov oznámení ([Space] na "VŠETKY TYPY").{/white-fg}');
+    out.push(' {white-fg}• Alebo vymaž vyhľadávacie pole hore.{/white-fg}');
+    messagesFeedBox.setContent(out.join('\n'));
+    return;
+  }
+
+  let currentDay = null;
+  const dayCounts = {};
+  items.forEach((n) => {
+    const d = n.date || '-';
+    dayCounts[d] = (dayCounts[d] || 0) + 1;
+  });
+
+  items.forEach((n) => {
+    const d = n.date || '-';
+    if (d !== currentDay) {
+      if (currentDay !== null) {
+        out.push('');
+      }
+      currentDay = d;
+      const dayTitle = formatDaySeparatorTitle(d);
+      const countBadge = `${dayCounts[d] || 1} ${dayCounts[d] === 1 ? 'záznam' : (dayCounts[d] >= 2 && dayCounts[d] <= 4 ? 'záznamy' : 'záznamov')}`;
+      const labelBlock = `  📅 ${dayTitle}  (${countBadge}) `;
+      const lineTotal = Math.max(10, innerW - labelBlock.length);
+      const leftDash = '═'.repeat(4);
+      const rightDash = '═'.repeat(Math.max(4, lineTotal - 4));
+
+      out.push(` {cyan-fg}{bold}${leftDash}{/bold}{/cyan-fg}{blue-bg}{white-fg}{bold}${labelBlock}{/bold}{/white-fg}{/blue-bg}{cyan-fg}{bold}${rightDash}{/bold}{/cyan-fg}`);
+      out.push('');
+    }
+
+    const catMeta = getCategoryMeta(n.category);
+    const bCol = catMeta.badgeColor;
+    const fCol = catMeta.borderColor;
+    const cardW = innerW - 2;
+
+    // Header Row inside card: [TIME] │ [BADGE] │ PREDMET │ OD: AUTHOR │ TERMÍN
+    const timeStr = n.time && n.time !== '-' ? n.time : '     ';
+    const badgeStr = `[${n.badge || 'OZNAM'}]`;
+    const subjPart = n.subject ? `  │  PREDMET: ${n.subject}` : '';
+    const authorPart = n.author ? `  │  OD: ${n.author}` : '';
+    const duePart = n.due_date ? `  │  TERMÍN: ${n.due_date}` : '';
+    const headerPlain = ` 🕒 ${timeStr}  ${badgeStr}${subjPart}${authorPart}${duePart}`;
+
+    out.push(` {${fCol}}┌${'─'.repeat(cardW)}┐{/${fCol}}`);
+    out.push(
+      ` {${fCol}}│{/${fCol}}{bold}{${bCol}}${padRawLine(headerPlain, cardW)}{/${bCol}}{/bold}{${fCol}}│{/${fCol}}`
+    );
+    out.push(` {${fCol}}├${'─'.repeat(cardW)}┤{/${fCol}}`);
+
+    // Wrapped Body Lines with breathing room
+    const bodyLines = wrapTextToLines(n.text || '-', cardW - 4);
+    bodyLines.forEach((bLine) => {
+      out.push(` {${fCol}}│{/${fCol}}{white-fg}  ${padRawLine(bLine, cardW - 2)}{/white-fg}{${fCol}}│{/${fCol}}`);
+    });
+
+    // Optional Attachments or Recipient footer line inside card
+    if (Array.isArray(n.attachments) && n.attachments.length > 0) {
+      const attStr = `  📎 Príloha: ${n.attachments.join(', ')}`;
+      out.push(` {${fCol}}│{/${fCol}}{yellow-fg}${padRawLine(attStr, cardW)}{/yellow-fg}{${fCol}}│{/${fCol}}`);
+    }
+
+    out.push(` {${fCol}}└${'─'.repeat(cardW)}┘{/${fCol}}`);
+    out.push(''); // Breathing space between notification cards
+  });
+
+  messagesFeedBox.setContent(out.join('\n'));
+}
+
+function renderMessagesCard() {
+  renderMessagesSidebar();
+  renderMessagesSearchBox();
+  renderMessagesFeed();
+}
+
 function updateWidgets() {
   updateHeader();
   updateFooter();
@@ -1869,6 +2332,9 @@ function updateWidgets() {
 
   // 7. Tab 3 Grades View (Sidebar + Overview / Pochvaly / Subject Detail)
   renderGradesCard();
+
+  // 8. Tab 4 Messages View (Left Checkbox Filters + Top Search + Day-Divided Feed)
+  renderMessagesCard();
 
   screen.render();
 }
@@ -1961,6 +2427,7 @@ function getInitialState() {
     regular_week_timetable: {},
     lunches: null,
     tasks: [],
+    notifications: [],
     all_grades: [],
     commendations: [],
   };
@@ -1970,19 +2437,89 @@ function getInitialState() {
 // Keyboard Handlers & Two-Level Navigation (Topbar <-> Card Sidebar)
 // ==============================================================================
 
-// Direct Number Tab Switching [1 - 5]
-screen.key(['1'], () => switchTab(0));
-screen.key(['2'], () => switchTab(1));
-screen.key(['3'], () => switchTab(2));
-screen.key(['4'], () => switchTab(3));
-screen.key(['5'], () => switchTab(4));
+function isMessagesSearchActive() {
+  return activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'search';
+}
 
-// Bracket Tab Switching always available globally
-screen.key(['['], () => switchTab((activeTabIndex - 1 + TABS.length) % TABS.length));
-screen.key([']'], () => switchTab((activeTabIndex + 1) % TABS.length));
+// Handle typing inside the Tab 4 Search Box
+screen.on('keypress', (ch, key) => {
+  if (!isMessagesSearchActive() || !key) return;
 
-// Left / Right Arrows: Switch Tabs when on Topbar; operate inside Card when in Sidebar
-screen.key(['left', 'h'], () => {
+  if (key.name === 'backspace') {
+    msgSearchQuery = msgSearchQuery.slice(0, -1);
+    if (typeof messagesFeedBox.scrollTo === 'function') messagesFeedBox.scrollTo(0);
+    renderMessagesCard();
+    screen.render();
+    return;
+  }
+
+  if (key.name === 'delete' || (key.ctrl && key.name === 'u')) {
+    msgSearchQuery = '';
+    if (typeof messagesFeedBox.scrollTo === 'function') messagesFeedBox.scrollTo(0);
+    renderMessagesCard();
+    screen.render();
+    return;
+  }
+
+  if (
+    ['up', 'down', 'left', 'right', 'enter', 'return', 'escape', 'tab', 'pageup', 'pagedown'].includes(
+      key.name
+    )
+  ) {
+    return;
+  }
+
+  if (ch && !key.ctrl && !key.meta && ch.length === 1 && ch.charCodeAt(0) >= 32) {
+    msgSearchQuery += ch;
+    if (typeof messagesFeedBox.scrollTo === 'function') messagesFeedBox.scrollTo(0);
+    renderMessagesCard();
+    screen.render();
+  }
+});
+
+// Direct Number Tab Switching [1 - 5] (ignored when typing into search box)
+screen.key(['1'], () => {
+  if (!isMessagesSearchActive()) switchTab(0);
+});
+screen.key(['2'], () => {
+  if (!isMessagesSearchActive()) switchTab(1);
+});
+screen.key(['3'], () => {
+  if (!isMessagesSearchActive()) switchTab(2);
+});
+screen.key(['4'], () => {
+  if (!isMessagesSearchActive()) switchTab(3);
+});
+screen.key(['5'], () => {
+  if (!isMessagesSearchActive()) switchTab(4);
+});
+
+// Bracket Tab Switching always available when not typing in search box
+screen.key(['['], () => {
+  if (!isMessagesSearchActive()) switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
+});
+screen.key([']'], () => {
+  if (!isMessagesSearchActive()) switchTab((activeTabIndex + 1) % TABS.length);
+});
+
+// Quick Search Activation on Tab 4 with '/' or 'f'
+screen.key(['/', 'f'], () => {
+  if (activeTabIndex === 3 && !isMessagesSearchActive()) {
+    navFocus = 'card';
+    msgSubFocus = 'search';
+    updateHeader();
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
+  }
+});
+
+// Left / Right Arrows: Switch Tabs when on Topbar; operate inside Card when in Sidebar/Feed
+screen.key(['left', 'h'], (_, key) => {
+  if (isMessagesSearchActive()) return;
+  if (key && key.name === 'h' && activeTabIndex === 3 && navFocus === 'card') {
+    // Allow 'h' or 'left' to switch from Feed to Left Checkboxes
+  }
   if (activeTabIndex === 1 && navFocus === 'card') {
     applySidebarItem(sidebarCursor, true);
     renderTimetableCard();
@@ -1990,12 +2527,18 @@ screen.key(['left', 'h'], () => {
   } else if (activeTabIndex === 2 && navFocus === 'card') {
     if (typeof gradesMainBox.scroll === 'function') gradesMainBox.scroll(-4);
     screen.render();
+  } else if (activeTabIndex === 3 && navFocus === 'card') {
+    msgSubFocus = 'filters';
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
   } else {
     switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
   }
 });
 
 screen.key(['right', 'l'], () => {
+  if (isMessagesSearchActive()) return;
   if (activeTabIndex === 1 && navFocus === 'card') {
     applySidebarItem(sidebarCursor, true);
     renderTimetableCard();
@@ -2003,13 +2546,43 @@ screen.key(['right', 'l'], () => {
   } else if (activeTabIndex === 2 && navFocus === 'card') {
     if (typeof gradesMainBox.scroll === 'function') gradesMainBox.scroll(4);
     screen.render();
+  } else if (activeTabIndex === 3 && navFocus === 'card') {
+    msgSubFocus = 'feed';
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
   } else {
     switchTab((activeTabIndex + 1) % TABS.length);
   }
 });
 
-// Down Arrow: Enter Card Sidebar from Topbar, or move cursor down inside Sidebar
-screen.key(['down', 'j'], () => {
+// PageUp / PageDown for fast scrolling through earlier notifications
+screen.key(['pageup'], () => {
+  if (activeTabIndex === 3) {
+    if (typeof messagesFeedBox.scroll === 'function') messagesFeedBox.scroll(-12);
+    renderMessagesCard();
+    screen.render();
+  } else if (activeTabIndex === 2 && typeof gradesMainBox.scroll === 'function') {
+    gradesMainBox.scroll(-10);
+    screen.render();
+  }
+});
+
+screen.key(['pagedown'], () => {
+  if (activeTabIndex === 3) {
+    if (typeof messagesFeedBox.scroll === 'function') messagesFeedBox.scroll(12);
+    renderMessagesCard();
+    screen.render();
+  } else if (activeTabIndex === 2 && typeof gradesMainBox.scroll === 'function') {
+    gradesMainBox.scroll(10);
+    screen.render();
+  }
+});
+
+// Down Arrow: Enter Card from Topbar, move cursor down inside Sidebar, or scroll notifications feed
+screen.key(['down', 'j'], (_, key) => {
+  if (isMessagesSearchActive() && key && key.name === 'j') return;
+
   if (activeTabIndex === 1) {
     if (navFocus === 'topbar') {
       navFocus = 'card';
@@ -2037,11 +2610,39 @@ screen.key(['down', 'j'], () => {
       renderGradesCard();
       screen.render();
     }
+  } else if (activeTabIndex === 3) {
+    const maxFilterIdx = MESSAGE_CATEGORIES.length + 1;
+    if (navFocus === 'topbar') {
+      navFocus = 'card';
+      msgSubFocus = 'feed';
+      updateHeader();
+      updateFooter();
+      renderMessagesCard();
+      screen.render();
+    } else if (msgSubFocus === 'search') {
+      msgSubFocus = 'feed';
+      updateFooter();
+      renderMessagesCard();
+      screen.render();
+    } else if (msgSubFocus === 'filters') {
+      if (msgFilterCursor < maxFilterIdx) {
+        msgFilterCursor += 1;
+        renderMessagesCard();
+        screen.render();
+      }
+    } else if (msgSubFocus === 'feed') {
+      if (typeof messagesFeedBox.scroll === 'function') {
+        messagesFeedBox.scroll(3);
+      }
+      screen.render();
+    }
   }
 });
 
-// Up Arrow: Move cursor up inside Card Sidebar; exit back to Topbar from top item
-screen.key(['up', 'k'], () => {
+// Up Arrow: Move cursor up inside Card Sidebar/Feed; exit back to Topbar from top item
+screen.key(['up', 'k'], (_, key) => {
+  if (isMessagesSearchActive() && key && key.name === 'k') return;
+
   if (activeTabIndex === 1 && navFocus === 'card') {
     if (sidebarCursor > 0) {
       sidebarCursor -= 1;
@@ -2068,11 +2669,52 @@ screen.key(['up', 'k'], () => {
       renderGradesCard();
       screen.render();
     }
+  } else if (activeTabIndex === 3 && navFocus === 'card') {
+    if (msgSubFocus === 'search') {
+      navFocus = 'topbar';
+      updateHeader();
+      updateFooter();
+      renderMessagesCard();
+      screen.render();
+    } else if (msgSubFocus === 'filters') {
+      if (msgFilterCursor > 0) {
+        msgFilterCursor -= 1;
+        renderMessagesCard();
+        screen.render();
+      } else {
+        navFocus = 'topbar';
+        updateHeader();
+        updateFooter();
+        renderMessagesCard();
+        screen.render();
+      }
+    } else if (msgSubFocus === 'feed') {
+      const currentScroll = typeof messagesFeedBox.getScroll === 'function' ? messagesFeedBox.getScroll() : 0;
+      if (currentScroll > 0 && typeof messagesFeedBox.scroll === 'function') {
+        messagesFeedBox.scroll(-3);
+        screen.render();
+      } else {
+        msgSubFocus = 'search';
+        updateFooter();
+        renderMessagesCard();
+        screen.render();
+      }
+    }
   }
 });
 
-// Enter / Space: Activate or toggle item inside Sidebar
-screen.key(['enter', 'space'], () => {
+// Enter / Space: Activate or toggle checkbox inside Sidebar
+screen.key(['enter', 'space'], (_, key) => {
+  if (isMessagesSearchActive()) {
+    if (key && (key.name === 'enter' || key.name === 'return')) {
+      msgSubFocus = 'feed';
+      updateFooter();
+      renderMessagesCard();
+      screen.render();
+    }
+    return;
+  }
+
   if (activeTabIndex === 1 && navFocus === 'card') {
     applySidebarItem(sidebarCursor, true);
     renderTimetableCard();
@@ -2080,11 +2722,28 @@ screen.key(['enter', 'space'], () => {
   } else if (activeTabIndex === 2 && navFocus === 'card') {
     renderGradesCard();
     screen.render();
+  } else if (activeTabIndex === 3 && navFocus === 'card') {
+    if (msgSubFocus === 'filters') {
+      toggleMessageFilterAtCursor();
+      renderMessagesCard();
+      screen.render();
+    }
   }
 });
 
-// Tab / Shift-Tab widget focus cycling inside Monitor tab
+// Tab / Shift-Tab widget focus cycling inside Monitor tab or Tab 4 sub-areas
 screen.key(['tab'], () => {
+  if (activeTabIndex === 3) {
+    navFocus = 'card';
+    const order = ['feed', 'filters', 'search'];
+    const nextIdx = (order.indexOf(msgSubFocus) + 1) % order.length;
+    msgSubFocus = order[nextIdx];
+    updateHeader();
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
+    return;
+  }
   const widgets = TAB_WIDGETS[activeTabIndex];
   if (widgets && widgets.length > 1) {
     activeWidgetIndex = (activeWidgetIndex + 1) % widgets.length;
@@ -2094,6 +2753,17 @@ screen.key(['tab'], () => {
 });
 
 screen.key(['S-tab'], () => {
+  if (activeTabIndex === 3) {
+    navFocus = 'card';
+    const order = ['feed', 'filters', 'search'];
+    const prevIdx = (order.indexOf(msgSubFocus) - 1 + order.length) % order.length;
+    msgSubFocus = order[prevIdx];
+    updateHeader();
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
+    return;
+  }
   const widgets = TAB_WIDGETS[activeTabIndex];
   if (widgets && widgets.length > 1) {
     activeWidgetIndex = (activeWidgetIndex - 1 + widgets.length) % widgets.length;
@@ -2102,13 +2772,30 @@ screen.key(['S-tab'], () => {
   }
 });
 
-// Refresh
+// Refresh (ignored when typing into search box)
 screen.key(['r'], () => {
-  fetchEdupageData();
+  if (!isMessagesSearchActive()) fetchEdupageData();
 });
 
-// Quit
-screen.key(['escape', 'q', 'C-c'], () => {
+// Quit (Esc exits search input first if search input is active)
+screen.key(['escape'], () => {
+  if (isMessagesSearchActive()) {
+    msgSubFocus = 'feed';
+    updateFooter();
+    renderMessagesCard();
+    screen.render();
+    return;
+  }
+  process.exit(0);
+});
+
+screen.key(['q'], () => {
+  if (!isMessagesSearchActive()) {
+    process.exit(0);
+  }
+});
+
+screen.key(['C-c'], () => {
   process.exit(0);
 });
 

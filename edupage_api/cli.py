@@ -1794,6 +1794,7 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "regular_week_timetable": {},
         "lunches": None,
         "tasks": [],
+        "notifications": [],
         "all_grades": [],
         "commendations": [],
     }
@@ -2208,6 +2209,221 @@ def export_dashboard_json(edupage: Edupage) -> dict:
                     "author": auth,
                     "text": (e.text or "").replace("\n", " ").strip(),
                 })
+    except Exception:
+        pass
+
+    # 6. All Timeline Notifications (Správy, Známky, Suplovanie, Úlohy & Testy, Dochádzka, Ostatné)
+    try:
+        raw_items = (edupage.data or {}).get("items", []) if isinstance(edupage.data, dict) else []
+        dbi_Notif_subjects = (((edupage.data or {}).get("dbi") or {}).get("subjects") or {}) if isinstance(edupage.data, dict) else {}
+        subj_by_name: Dict[str, str] = {}
+        for s_id, s_info in dbi_Notif_subjects.items():
+            if isinstance(s_info, dict):
+                s_full = str(s_info.get("name") or "").strip()
+                s_sh = str(s_info.get("short") or "").strip()
+                if s_full and s_sh:
+                    subj_by_name[s_full.lower()] = f"{s_sh} ({s_full})"
+
+        silent_helper_types = {
+            "h_clearplany",
+            "h_dailyplan",
+            "h_clearcache",
+            "h_clearisicdata",
+            "h_cleardbi",
+            "h_homework",
+            "h_ospravedlnenka",
+            "h_testmeres",
+            "h_settings",
+            "h_edusettings",
+            "h_pripravy",
+            "h_znamky",
+            "confirmation",
+        }
+
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("removed") == "1":
+                continue
+
+            typ = str(item.get("typ") or "").strip()
+            raw_text = str(item.get("text") or "").strip()
+            if typ in silent_helper_types:
+                continue
+
+            raw_data_str = item.get("data")
+            ed: Any = {}
+            if isinstance(raw_data_str, str) and raw_data_str.strip():
+                try:
+                    ed = json.loads(raw_data_str)
+                except Exception:
+                    ed = {}
+            elif isinstance(raw_data_str, dict):
+                ed = raw_data_str
+
+            if not isinstance(ed, dict):
+                ed = {}
+
+            # Prefer full messageContent for important messages
+            msg_content = ed.get("messageContent")
+            if isinstance(msg_content, str) and msg_content.strip():
+                raw_text = msg_content.strip()
+
+            if not raw_text:
+                raw_text = str(ed.get("nazov") or ed.get("name") or "").strip()
+
+            # Enrich specific types when text is still short or generic
+            if typ == "homeworkstudentstav" and not raw_text:
+                hw_title = str(ed.get("nazov") or "Domáca úloha").strip()
+                raw_text = f"Aktualizovaný stav úlohy: {hw_title}"
+
+            if not raw_text:
+                continue
+
+            ts_str = str(item.get("timestamp") or "").strip()
+            date_part = ts_str[:10] if len(ts_str) >= 10 else "-"
+            time_part = ts_str[11:16] if len(ts_str) >= 16 else "-"
+
+            author = str(item.get("vlastnik_meno") or "").strip() or "EduPage"
+            recipient = str(item.get("user_meno") or "").strip() or ""
+
+            # Resolve subject if available
+            subj_str = ""
+            predmet_id = str(ed.get("predmetid") or ed.get("subjectid") or "").strip()
+            if predmet_id and predmet_id in dbi_Notif_subjects:
+                s_obj = dbi_Notif_subjects[predmet_id]
+                s_sh = str(s_obj.get("short") or "").strip()
+                s_nm = str(s_obj.get("name") or "").strip()
+                subj_str = f"{s_sh} ({s_nm})" if (s_sh and s_nm) else (s_nm or s_sh)
+
+            if not subj_str and "·" in recipient:
+                after_dot = recipient.split("·", 1)[1].strip()
+                subj_str = subj_by_name.get(after_dot.lower(), after_dot)
+
+            if not subj_str and typ == "znamka" and raw_text.startswith("Známka - "):
+                rest = raw_text[len("Známka - "):]
+                if ":" in rest:
+                    s_cand = rest.split(":", 1)[0].strip()
+                    subj_str = subj_by_name.get(s_cand.lower(), s_cand)
+
+            if not subj_str and isinstance(ed.get("planNazov"), str) and "·" in ed["planNazov"]:
+                after_dot = ed["planNazov"].split("·", 1)[1].strip()
+                subj_str = subj_by_name.get(after_dot.lower(), after_dot)
+
+            # Classify category & badge label
+            if typ in {"sprava", "chat", "anketa", "news", "genotif", "konzultaciemsg", "library"}:
+                cat_key = "SPRAVY"
+                type_badge = "KONZULTÁCIE" if typ == "konzultaciemsg" else ("ANKETA" if typ == "anketa" else "SPRÁVA")
+            elif typ in {"znamka", "znamkydoc", "h_znamky", "vcelicka", "h_vcelicka"}:
+                cat_key = "ZNAMKY"
+                if typ in {"vcelicka", "h_vcelicka"}:
+                    type_badge = "POCHVALA / POZN."
+                else:
+                    type_badge = "ZNÁMKA"
+            elif typ in {"substitution", "h_substitution", "timetable", "h_timetable", "changeroom", "bookroom", "ttcancel"}:
+                cat_key = "SUPLOVANIE"
+                if "timetable" in typ:
+                    type_badge = "ROZVRH"
+                else:
+                    type_badge = "SUPLOVANIE"
+                    # Add dates if substitution dict has date keys
+                    sub_dates = [k for k in ed.keys() if re.match(r"^\d{4}-\d{2}-\d{2}$", str(k))]
+                    if sub_dates:
+                        sub_dates_fmt = ", ".join(sorted(sub_dates))
+                        if sub_dates_fmt not in raw_text:
+                            raw_text = f"{raw_text} (Dni: {sub_dates_fmt})"
+            elif typ in {
+                "homework",
+                "homeworkstudentstav",
+                "etesthw",
+                "testpridelenie",
+                "testvysledok",
+                "bexam",
+                "sexam",
+                "oexam",
+                "rexam",
+                "pexam",
+                "testing",
+                "testme",
+                "event",
+                "schoolevent",
+                "excursion",
+                "trip",
+                "culture",
+            }:
+                cat_key = "ULOHY"
+                if typ in {"homework", "homeworkstudentstav", "etesthw"}:
+                    type_badge = "DOMÁCA ÚLOHA"
+                elif typ in {"testpridelenie", "testvysledok", "bexam", "sexam", "oexam", "rexam", "pexam", "testing", "testme"}:
+                    type_badge = "TEST / PÍSOMKA"
+                else:
+                    type_badge = "UDALOSŤ / TERMÍN"
+            elif typ in {"pipnutie", "student_absent", "ospravedlnenka", "ospravedlnenka_reminder", "representation", "h_attendance"}:
+                cat_key = "DOCHADZKA"
+                if typ == "pipnutie":
+                    type_badge = "PRÍCHOD / ODCHOD"
+                elif typ == "ospravedlnenka":
+                    type_badge = "OSPRAVEDLNENKA"
+                    note_exc = str(ed.get("note") or "").strip()
+                    if note_exc and note_exc not in raw_text:
+                        raw_text = f"{raw_text} (Dôvod: {note_exc})"
+                else:
+                    type_badge = "ABSENCIA"
+            else:
+                cat_key = "OSTATNE"
+                if "strava" in typ:
+                    type_badge = "JEDÁLEŇ / STRAVA"
+                elif "financie" in typ or "payment" in typ:
+                    type_badge = "PLATBY / FINANCIE"
+                else:
+                    type_badge = "OZNÁMENIE"
+
+            # Attachments list if present
+            attachments_list: List[str] = []
+            att_raw = ed.get("attachements") or ed.get("attachments")
+            if isinstance(att_raw, dict):
+                for _, fname in att_raw.items():
+                    if fname:
+                        attachments_list.append(str(fname).strip())
+            elif isinstance(att_raw, list):
+                for fname in att_raw:
+                    if fname:
+                        attachments_list.append(str(fname).strip())
+
+            # Due / Event date if present
+            due_date = ""
+            cas_ud = str(item.get("cas_udalosti") or ed.get("date") or ed.get("dateto") or "").strip()
+            if len(cas_ud) >= 10 and cas_ud[:10] != date_part and not cas_ud.startswith("0000"):
+                due_date = cas_ud[:10]
+
+            # Clean multi-line text while preserving paragraph breaks
+            clean_lines = [ln.strip() for ln in raw_text.replace("\r\n", "\n").replace("\r", "\n").split("\n") if ln.strip()]
+            clean_text = "\n".join(clean_lines)
+
+            # Deduplicate identical back-to-back notifications within the same date & category (e.g. h_stravamenu / h_substitution)
+            if data["notifications"]:
+                prev = data["notifications"][-1]
+                if prev["date"] == date_part and prev["category"] == cat_key and prev["author"] == author:
+                    if prev["text"].startswith(clean_text) or clean_text.startswith(prev["text"]):
+                        if len(clean_text) > len(prev["text"]):
+                            prev["text"] = clean_text
+                        continue
+
+            data["notifications"].append({
+                "id": str(item.get("timelineid") or len(data["notifications"]) + 1),
+                "timestamp": ts_str,
+                "date": date_part,
+                "time": time_part,
+                "category": cat_key,
+                "type_raw": typ,
+                "badge": type_badge,
+                "author": author,
+                "recipient": recipient,
+                "subject": subj_str,
+                "due_date": due_date,
+                "text": clean_text,
+                "attachments": attachments_list,
+            })
     except Exception:
         pass
 
