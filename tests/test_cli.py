@@ -167,7 +167,7 @@ class TestCli(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("Bravčový rezeň", rendered)
         self.assertIn("Slepačí vývar", rendered)
-        self.assertIn("Objednané menu: A", rendered)
+        self.assertIn("[ORDERED: A]", rendered)
 
     def test_credentials_flow(self):
         with tempfile.TemporaryDirectory() as tmpdir:

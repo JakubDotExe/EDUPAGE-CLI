@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""EduPage CLI - Moderný interaktívny nástroj príkazového riadku pre EduPage."""
+"""EduPage CLI - Moderný minimalistický TUI nástroj v btop štýle pre EduPage."""
 
 import argparse
 import getpass
@@ -43,7 +43,7 @@ if sys.platform == "win32":
         except Exception:
             pass
 
-# ANSI Color codes
+# ANSI Color codes (btop dark theme inspired)
 COLOR_RESET = "\033[0m"
 COLOR_BOLD = "\033[1m"
 COLOR_DIM = "\033[2m"
@@ -55,13 +55,12 @@ COLOR_MAGENTA = "\033[95m"
 COLOR_RED = "\033[91m"
 COLOR_BLUE = "\033[94m"
 COLOR_WHITE = "\033[97m"
-COLOR_BG_BLUE = "\033[44m"
-COLOR_BG_CYAN = "\033[46m"
 
 # Configuration file paths
 CONFIG_DIR = os.path.expanduser("~/.edupage")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "credentials.json")
 LOCAL_CONFIG_FILE = ".edupage_credentials.json"
+CLI_VERSION = "v1.0.0"
 
 
 # ==============================================================================
@@ -137,27 +136,32 @@ def get_display_user_name(edupage: Edupage) -> str:
             val = edupage.data.get(key)
             if val and isinstance(val, str):
                 return val
-    return edupage.username or "Prihlásený používateľ"
+    return edupage.username or "User"
 
 
 def print_banner(edupage: Optional[Edupage] = None, use_color: bool = True) -> None:
-    """Zobrazí moderný vizuálny banner aplikácie."""
+    """Zobrazí minimalistický btop-style hlavičkový box."""
     width = 86
-    border = "═" * (width - 2)
-    print(colorize(f"╔{border}╗", COLOR_CYAN, use_color))
-    title = "🎓  EDUPAGE CLI  -  INTERAKTÍVNY ŠKOLSKÝ ASISTENT"
-    print(colorize(f"║ {title:^{width - 4}} ║", COLOR_BOLD, use_color))
+    title = f"EDUPAGE CLI [{CLI_VERSION}]"
+    right_tag = "ONLINE" if (edupage and edupage.is_logged_in) else "OFFLINE"
+    right_tag_colored = colorize(f"[{right_tag}]", COLOR_GREEN if right_tag == "ONLINE" else COLOR_DIM, use_color)
+
+    title_len = len(title) + len(right_tag) + 4
+    mid_bar = "─" * max(4, width - title_len - 8)
+
+    top_border = f"╭─ {colorize(title, COLOR_BOLD, use_color)} {colorize(mid_bar, COLOR_CYAN, use_color)} {right_tag_colored} ─╮"
+    print(colorize(top_border, COLOR_CYAN, use_color))
 
     if edupage and edupage.is_logged_in:
         user_name = get_display_user_name(edupage)
-        school = f"{edupage.subdomain}.edupage.org" if edupage.subdomain else "EduPage"
-        today_str = datetime.now().strftime("%d.%m.%Y %H:%M")
-        info = f"👤 {user_name}  •  🏫 {school}  •  🕒 {today_str}"
-        div = "─" * (width - 2)
-        print(colorize(f"╟{div}╢", COLOR_CYAN, use_color))
-        print(colorize(f"║ {info:^{width - 4}} ║", COLOR_DIM, use_color))
+        host = f"{edupage.subdomain}.edupage.org" if edupage.subdomain else "edupage.org"
+        time_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    print(colorize(f"╚{border}╝", COLOR_CYAN, use_color))
+        info_line = f" USER: {user_name}  |  HOST: {host}  |  TIME: {time_now}"
+        print(colorize("│ ", COLOR_CYAN, use_color) + colorize(f"{info_line:<{width - 4}}", COLOR_DIM, use_color) + colorize(" │", COLOR_CYAN, use_color))
+
+    bottom_border = f"╰{'─' * (width - 2)}╯"
+    print(colorize(bottom_border, COLOR_CYAN, use_color))
 
 
 # ==============================================================================
@@ -166,21 +170,21 @@ def print_banner(edupage: Optional[Edupage] = None, use_color: bool = True) -> N
 
 def handle_two_factor(second_factor, edupage: Edupage, use_color: bool = True) -> None:
     """Spracuje dvojfaktorovú autentifikáciu (2FA)."""
-    print(colorize("\n[!] Vyžaduje sa dvojfaktorové overenie (2FA)", COLOR_YELLOW, use_color))
-    print(" 1 -> Potvrdiť v mobilnej aplikácii EduPage")
-    print(" 2 -> Zadať jednorazový overovací kód (SMS / E-mail)")
-    choice = input("Zvoľte metódu [1/2]: ").strip()
+    print(colorize("\n[2FA] Authentication challenge required.", COLOR_YELLOW, use_color))
+    print("  [1] Approve via mobile app push notification")
+    print("  [2] Enter one-time code (SMS / Email)")
+    choice = input("  select [1/2]: ").strip()
 
     if choice == "1":
-        print("Čakám na potvrdenie v mobilnej aplikácii EduPage...")
+        print("  waiting for mobile push confirmation...")
         import time
         while not second_factor.is_confirmed():
             time.sleep(0.5)
         second_factor.finish()
-        print(colorize("✓ Overenie cez mobilnú aplikáciu bolo úspešné!", COLOR_GREEN, use_color))
+        print(colorize("  [OK] 2FA confirmed via mobile app.", COLOR_GREEN, use_color))
     else:
-        email = second_factor.email or "váš e-mail"
-        prompt = f"Zadajte 2FA kód (alebo 'email' pre zaslanie na {email}, 'resend' pre znovuzaslanie): "
+        email = second_factor.email or "registered email"
+        prompt = f"  enter 2FA code (or 'email' / 'resend'): "
 
         def send_after_countdown(send_fn):
             import time
@@ -188,7 +192,7 @@ def handle_two_factor(second_factor, edupage: Edupage, use_color: bool = True) -
                 try:
                     return send_fn()
                 except RetryLaterException as e:
-                    print(f"Čakám {e.retry_in_seconds} sekúnd pred opätovným odoslaním...")
+                    print(f"  cooling down: {e.retry_in_seconds}s...")
                     time.sleep(e.retry_in_seconds)
 
         while not edupage.is_logged_in:
@@ -196,17 +200,17 @@ def handle_two_factor(second_factor, edupage: Edupage, use_color: bool = True) -
             try:
                 if code.lower() == "email":
                     send_after_countdown(second_factor.send_email_code)
-                    print(f"Kód bol odoslaný na {second_factor.email or email}")
+                    print(f"  code sent to {second_factor.email or email}")
                 elif code.lower() == "resend":
                     send_after_countdown(second_factor.resend_notifications)
-                    print("Notifikácia bola znova odoslaná.")
+                    print("  notification resent.")
                 else:
                     second_factor.finish_with_code(code)
-                    print(colorize("✓ Kód prijatý, prihlasovanie dokončené!", COLOR_GREEN, use_color))
+                    print(colorize("  [OK] 2FA verification succeeded.", COLOR_GREEN, use_color))
             except SecondFactorFailedException:
-                print(colorize("Neplatný kód alebo vypršala platnosť (skúste znova).", COLOR_RED, use_color))
+                print(colorize("  [ERR] Invalid or expired code. Try again.", COLOR_RED, use_color))
             except RequestError as e:
-                print(colorize(f"Chyba komunikácie: {e}", COLOR_RED, use_color))
+                print(colorize(f"  [ERR] Connection error: {e}", COLOR_RED, use_color))
 
 
 def authenticate(
@@ -224,23 +228,23 @@ def authenticate(
     subdomain = subdomain or saved_sub
 
     if not username and interactive:
-        username = input("Prihlasovacie meno (alebo e-mail): ").strip()
+        username = input("Username / Email: ").strip()
         if not username:
-            print(colorize("Chyba: Prihlasovacie meno je povinné.", COLOR_RED, use_color))
+            print(colorize("[ERR] Username is required.", COLOR_RED, use_color))
             return None
 
     if not password and interactive:
-        password = getpass.getpass("Heslo: ")
+        password = getpass.getpass("Password: ")
         if not password:
-            print(colorize("Chyba: Heslo je povinné.", COLOR_RED, use_color))
+            print(colorize("[ERR] Password is required.", COLOR_RED, use_color))
             return None
 
     if subdomain is None and interactive:
-        sub = input("Subdoména školy (napr. 'ssnd' pre ssnd.edupage.org, Enter pre auto-detect): ").strip()
+        sub = input("School subdomain (e.g. 'ssnd' or Enter for auto-detect): ").strip()
         subdomain = sub if sub else None
 
     edupage = Edupage()
-    print(colorize("Pripájam sa k EduPage...", COLOR_DIM, use_color))
+    print(colorize("[...] Connecting to EduPage...", COLOR_DIM, use_color))
 
     try:
         if subdomain:
@@ -252,26 +256,26 @@ def authenticate(
             handle_two_factor(second_factor, edupage, use_color=use_color)
 
     except BadCredentialsException:
-        print(colorize("Chyba: Nesprávne prihlasovacie meno, heslo alebo subdoména!", COLOR_RED, use_color))
+        print(colorize("[ERR] Bad credentials or invalid school subdomain.", COLOR_RED, use_color))
         return None
     except CaptchaException:
-        print(colorize("Chyba: EduPage vyžaduje Captcha. Prihláste sa najprv cez web.", COLOR_RED, use_color))
+        print(colorize("[ERR] Captcha challenge triggered. Log in via web browser first.", COLOR_RED, use_color))
         return None
     except Exception as e:
-        print(colorize(f"Chyba pri prihlasovaní: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Login failed: {e}", COLOR_RED, use_color))
         return None
 
     if not edupage.is_logged_in:
-        print(colorize("Chyba: Prihlásenie nebolo úspešné.", COLOR_RED, use_color))
+        print(colorize("[ERR] Authentication failed.", COLOR_RED, use_color))
         return None
 
     # Offer saving credentials if not already saved
     if interactive and not os.path.isfile(CONFIG_FILE) and not os.path.isfile(LOCAL_CONFIG_FILE):
         try:
-            choice = input("\nChcete bezpečne uložiť prihlasovacie údaje pre budúce spustenia? [A/n]: ").strip().lower()
-            if choice in ["", "a", "ano", "y", "yes"]:
+            choice = input("\nSave credentials locally to ~/.edupage/credentials.json? [y/N]: ").strip().lower()
+            if choice in ["y", "yes", "a", "ano"]:
                 save_credentials(username, password, edupage.subdomain or subdomain)
-                print(colorize("✓ Prihlasovacie údaje boli uložené do ~/.edupage/credentials.json", COLOR_GREEN, use_color))
+                print(colorize("[OK] Credentials saved.", COLOR_GREEN, use_color))
         except Exception:
             pass
 
@@ -400,23 +404,23 @@ def render_grades_table(
     user_info: Optional[str] = None,
     use_color: bool = True,
 ) -> None:
-    """Zobrazí prehľadnú tabuľku známok zoskupenú podľa predmetov."""
+    """Zobrazí prehľadnú tabuľku známok zoskupenú podľa predmetov v btop štýle."""
     total_grades = sum(len(items) for items in grades_by_subject.values())
     total_subjects = len(grades_by_subject)
 
-    banner_width = 86
-    print(colorize("=" * banner_width, COLOR_CYAN, use_color))
-    title_line = " EDUPAGE CLI  -  PREHĽAD ZNÁMOK "
-    print(colorize(f"{title_line:^{banner_width}}", COLOR_BOLD, use_color))
+    width = 86
+    title_text = "EDUPAGE CLI - PREHLAD ZNAMOK"
+    stats_text = f"SUBJECTS: {total_subjects}  |  TOTAL MARKS: {total_grades}"
+    
+    print(colorize(f"╭─ {title_text} {'─' * (width - len(title_text) - 6)}╮", COLOR_CYAN, use_color))
     if user_info:
-        info_line = f" Používateľ: {user_info} "
-        print(colorize(f"{info_line:^{banner_width}}", COLOR_DIM, use_color))
-    stats_line = f" Počet predmetov: {total_subjects}  •  Spolu známok: {total_grades} "
-    print(colorize(f"{stats_line:^{banner_width}}", COLOR_DIM, use_color))
-    print(colorize("=" * banner_width, COLOR_CYAN, use_color))
+        user_line = f" USER: {user_info}"
+        print(colorize("│ ", COLOR_CYAN, use_color) + colorize(f"{user_line:<{width - 4}}", COLOR_DIM, use_color) + colorize(" │", COLOR_CYAN, use_color))
+    print(colorize("│ ", COLOR_CYAN, use_color) + colorize(f" {stats_text:<{width - 4}}", COLOR_DIM, use_color) + colorize(" │", COLOR_CYAN, use_color))
+    print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
 
     if not grades_by_subject:
-        print("\n  Nenašli sa žiadne známky pre zvolené obdobie.\n")
+        print(colorize("\n  [i] No grades found for the selected period.\n", COLOR_DIM, use_color))
         return
 
     col_date = 10
@@ -427,41 +431,30 @@ def render_grades_table(
 
     for subject, grades in sorted(grades_by_subject.items(), key=lambda x: x[0]):
         stats = calculate_subject_stats(grades)
-        stats_str_parts = [f"Známok: {stats['count']}"]
+        stats_str_parts = [f"MARKS: {stats['count']}"]
         if stats["avg_grade"] is not None:
-            stats_str_parts.append(f"Vážený priemer: {stats['avg_grade']:.2f}")
+            stats_str_parts.append(f"AVG: {stats['avg_grade']:.2f}")
         if stats["avg_percent"] is not None:
-            stats_str_parts.append(f"Priemerné percento: {stats['avg_percent']:.1f}%")
+            stats_str_parts.append(f"PERCENT: {stats['avg_percent']:.1f}%")
         stats_info = "  |  ".join(stats_str_parts)
 
-        header_text = f" {subject.upper()} "
-        remaining_len = max(2, banner_width - len(header_text) - 4)
+        subj_header = f" {subject.upper()} "
+        rem_len = max(2, width - len(subj_header) - len(stats_info) - 8)
+        header_bar = f"╭─ {colorize(subj_header, COLOR_BOLD, use_color)}{'─' * rem_len} [ {colorize(stats_info, COLOR_CYAN, use_color)} ] ─╮"
         print()
-        print(colorize(f"┌─{header_text}{'─' * remaining_len}┐", COLOR_CYAN, use_color))
-        print(
-            colorize("│ ", COLOR_CYAN, use_color)
-            + colorize(f"{stats_info:<{banner_width - 4}}", COLOR_BOLD, use_color)
-            + colorize(" │", COLOR_CYAN, use_color)
-        )
-        print(
-            colorize(
-                f"├{'─' * (col_date + 2)}┬{'─' * (col_grade + 2)}┬{'─' * (col_weight + 2)}┬{'─' * (col_title + 2)}┬{'─' * (col_comment + 2)}┤",
-                COLOR_CYAN,
-                use_color,
-            )
-        )
+        print(colorize(header_bar, COLOR_CYAN, use_color))
 
         h_row = (
             colorize("│ ", COLOR_CYAN, use_color)
-            + colorize(f"{'Dátum':<{col_date}}", COLOR_DIM, use_color)
+            + colorize(f"{'DATE':<{col_date}}", COLOR_DIM, use_color)
             + colorize(" │ ", COLOR_CYAN, use_color)
-            + colorize(f"{'Známka':<{col_grade}}", COLOR_DIM, use_color)
+            + colorize(f"{'MARK':<{col_grade}}", COLOR_DIM, use_color)
             + colorize(" │ ", COLOR_CYAN, use_color)
-            + colorize(f"{'Váha':<{col_weight}}", COLOR_DIM, use_color)
+            + colorize(f"{'WEIGHT':<{col_weight}}", COLOR_DIM, use_color)
             + colorize(" │ ", COLOR_CYAN, use_color)
-            + colorize(f"{'Názov udalosti':<{col_title}}", COLOR_DIM, use_color)
+            + colorize(f"{'ASSIGNMENT / EVENT':<{col_title}}", COLOR_DIM, use_color)
             + colorize(" │ ", COLOR_CYAN, use_color)
-            + colorize(f"{'Poznámka / Učiteľ':<{col_comment}}", COLOR_DIM, use_color)
+            + colorize(f"{'NOTE / TEACHER':<{col_comment}}", COLOR_DIM, use_color)
             + colorize(" │", COLOR_CYAN, use_color)
         )
         print(h_row)
@@ -506,7 +499,7 @@ def render_grades_table(
 
         print(
             colorize(
-                f"└{'─' * (col_date + 2)}┴{'─' * (col_grade + 2)}┴{'─' * (col_weight + 2)}┴{'─' * (col_title + 2)}┴{'─' * (col_comment + 2)}┘",
+                f"╰{'─' * (col_date + 2)}┴{'─' * (col_grade + 2)}┴{'─' * (col_weight + 2)}┴{'─' * (col_title + 2)}┴{'─' * (col_comment + 2)}╯",
                 COLOR_CYAN,
                 use_color,
             )
@@ -518,12 +511,12 @@ def render_grades_table(
 def view_grades(edupage: Edupage, use_color: bool = True, subject_filter: Optional[str] = None) -> None:
     """Zobrazí známky a umožní filtrovanie / prepínanie polroka."""
     try:
-        print(colorize("Načítavam známky...", COLOR_DIM, use_color))
+        print(colorize("[...] Loading grades...", COLOR_DIM, use_color))
         grades = edupage.get_grades()
 
         grades_by_subject: Dict[str, List[EduGrade]] = {}
         for g in grades:
-            subj = g.subject_name or "Neznámy predmet"
+            subj = g.subject_name or "Unknown Subject"
             if subject_filter and subject_filter.lower() not in subj.lower():
                 continue
             grades_by_subject.setdefault(subj, []).append(g)
@@ -532,7 +525,7 @@ def view_grades(edupage: Edupage, use_color: bool = True, subject_filter: Option
         render_grades_table(grades_by_subject, user_info=user_info, use_color=use_color)
 
     except Exception as e:
-        print(colorize(f"Chyba pri načítaní známok: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Failed to fetch grades: {e}", COLOR_RED, use_color))
 
 
 # ==============================================================================
@@ -540,17 +533,17 @@ def view_grades(edupage: Edupage, use_color: bool = True, subject_filter: Option
 # ==============================================================================
 
 def render_day_timetable(timetable: Optional[Timetable], target_date: date, use_color: bool = True) -> None:
-    """Vykreslí rozvrh na konkrétny deň."""
-    sk_days = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"]
+    """Vykreslí rozvrh na konkrétny deň v btop štýle."""
+    sk_days = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
     day_name = sk_days[target_date.weekday()]
-    date_str = f"{day_name}, {target_date.strftime('%d.%m.%Y')}"
+    date_str = f"{day_name} {target_date.strftime('%Y-%m-%d')}"
 
     width = 86
-    print(colorize(f"\n┌─ [ 📅 {date_str} ] {'─' * (width - len(date_str) - 10)}┐", COLOR_CYAN, use_color))
+    print(colorize(f"\n╭─ TIMETABLE [{date_str}] {'─' * (width - len(date_str) - 20)}╮", COLOR_CYAN, use_color))
 
     if not timetable or not timetable.lessons:
-        print(colorize("│  Pre tento deň nie sú v rozvrhu žiadne hodiny.                              │", COLOR_DIM, use_color))
-        print(colorize(f"└{'─' * (width - 2)}┘", COLOR_CYAN, use_color))
+        print(colorize("│  No lessons scheduled for this day.                                         │", COLOR_DIM, use_color))
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
         return
 
     col_period = 4
@@ -562,17 +555,17 @@ def render_day_timetable(timetable: Optional[Timetable], target_date: date, use_
 
     h_row = (
         colorize("│ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Hod':<{col_period}}", COLOR_DIM, use_color)
+        + colorize(f"{'#':<{col_period}}", COLOR_DIM, use_color)
         + colorize(" │ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Čas':<{col_time}}", COLOR_DIM, use_color)
+        + colorize(f"{'TIME':<{col_time}}", COLOR_DIM, use_color)
         + colorize(" │ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Predmet':<{col_subject}}", COLOR_DIM, use_color)
+        + colorize(f"{'SUBJECT':<{col_subject}}", COLOR_DIM, use_color)
         + colorize(" │ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Učebňa':<{col_room}}", COLOR_DIM, use_color)
+        + colorize(f"{'ROOM':<{col_room}}", COLOR_DIM, use_color)
         + colorize(" │ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Učiteľ':<{col_teacher}}", COLOR_DIM, use_color)
+        + colorize(f"{'TEACHER':<{col_teacher}}", COLOR_DIM, use_color)
         + colorize(" │ ", COLOR_CYAN, use_color)
-        + colorize(f"{'Učivo / Poznámka':<{col_topic}}", COLOR_DIM, use_color)
+        + colorize(f"{'CURRICULUM':<{col_topic}}", COLOR_DIM, use_color)
         + colorize(" │", COLOR_CYAN, use_color)
     )
     print(h_row)
@@ -588,7 +581,7 @@ def render_day_timetable(timetable: Optional[Timetable], target_date: date, use_
         period_str = str(l.period) if l.period is not None else "-"
         time_str = f"{l.start_time.strftime('%H:%M')}-{l.end_time.strftime('%H:%M')}" if (l.start_time and l.end_time) else "-"
 
-        subj_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Voľná hodina")
+        subj_name = l.subject.name if l.subject else (l.curriculum if l.is_event else "Free period")
         subj_name = (subj_name or "-")[:col_subject]
 
         room_str = ", ".join(c.name for c in l.classrooms) if l.classrooms else "-"
@@ -601,9 +594,9 @@ def render_day_timetable(timetable: Optional[Timetable], target_date: date, use_
 
         # Status badge
         if l.is_cancelled:
-            subj_col = colorize(f"{subj_name} [ODPADLA]", COLOR_RED, use_color)
+            subj_col = colorize(f"{subj_name} [CANCELLED]", COLOR_RED, use_color)
         elif l.is_event:
-            subj_col = colorize(f"{subj_name} [AKCIA]", COLOR_CYAN, use_color)
+            subj_col = colorize(f"{subj_name} [EVENT]", COLOR_CYAN, use_color)
         elif l.is_online_lesson():
             subj_col = colorize(f"{subj_name} [ONLINE]", COLOR_BLUE, use_color)
         else:
@@ -626,7 +619,7 @@ def render_day_timetable(timetable: Optional[Timetable], target_date: date, use_
         )
         print(row)
 
-    print(colorize(f"└{'─' * (col_period + 2)}┴{'─' * (col_time + 2)}┴{'─' * (col_subject + 2)}┴{'─' * (col_room + 2)}┴{'─' * (col_teacher + 2)}┴{'─' * (col_topic + 2)}┘", COLOR_CYAN, use_color))
+    print(colorize(f"╰{'─' * (col_period + 2)}┴{'─' * (col_time + 2)}┴{'─' * (col_subject + 2)}┴{'─' * (col_room + 2)}┴{'─' * (col_teacher + 2)}┴{'─' * (col_topic + 2)}╯", COLOR_CYAN, use_color))
 
 
 def view_timetable(edupage: Edupage, target_date: Optional[date] = None, week_mode: bool = False, use_color: bool = True) -> None:
@@ -635,21 +628,21 @@ def view_timetable(edupage: Edupage, target_date: Optional[date] = None, week_mo
 
     if week_mode:
         start_of_week = target_date - timedelta(days=target_date.weekday())
-        print(colorize(f"\nNačítavam rozvrh na týždeň {start_of_week.strftime('%d.%m.')} - {(start_of_week + timedelta(days=4)).strftime('%d.%m.%Y')}...", COLOR_DIM, use_color))
+        print(colorize(f"\n[...] Fetching weekly schedule {start_of_week.strftime('%Y-%m-%d')} - {(start_of_week + timedelta(days=4)).strftime('%Y-%m-%d')}...", COLOR_DIM, use_color))
         for day_offset in range(5):
             d = start_of_week + timedelta(days=day_offset)
             try:
                 tt = edupage.get_my_timetable(d)
                 render_day_timetable(tt, d, use_color=use_color)
             except Exception as e:
-                print(colorize(f"Chyba pri načítaní dňa {d}: {e}", COLOR_RED, use_color))
+                print(colorize(f"[ERR] Day {d} error: {e}", COLOR_RED, use_color))
     else:
         try:
-            print(colorize(f"\nNačítavam rozvrh na {target_date.strftime('%d.%m.%Y')}...", COLOR_DIM, use_color))
+            print(colorize(f"\n[...] Fetching timetable for {target_date.strftime('%Y-%m-%d')}...", COLOR_DIM, use_color))
             tt = edupage.get_my_timetable(target_date)
             render_day_timetable(tt, target_date, use_color=use_color)
         except Exception as e:
-            print(colorize(f"Chyba pri načítaní rozvrhu: {e}", COLOR_RED, use_color))
+            print(colorize(f"[ERR] Failed to fetch timetable: {e}", COLOR_RED, use_color))
 
 
 # ==============================================================================
@@ -657,51 +650,53 @@ def view_timetable(edupage: Edupage, target_date: Optional[date] = None, week_mo
 # ==============================================================================
 
 def view_substitution(edupage: Edupage, target_date: Optional[date] = None, use_color: bool = True) -> None:
-    """Zobrazí chýbajúcich učiteľov a zmeny v rozvrhu (suplovanie)."""
+    """Zobrazí chýbajúcich učiteľov a zmeny v rozvrhu (suplovanie) v btop štýle."""
     target_date = target_date or date.today()
-    sk_days = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"]
-    day_name = sk_days[target_date.weekday()]
-    date_str = f"{day_name}, {target_date.strftime('%d.%m.%Y')}"
+    date_str = target_date.strftime("%Y-%m-%d")
 
-    print(colorize(f"\n══════════════════ 🔄  SUPLOVANIE A ZMENY ({date_str}) ══════════════════", COLOR_CYAN, use_color))
+    width = 86
+    title = f"SUBSTITUTION & TIMETABLE CHANGES [{date_str}]"
+    print(colorize(f"\n╭─ {title} {'─' * max(2, width - len(title) - 6)}╮", COLOR_CYAN, use_color))
 
     try:
-        print(colorize("Načítavam informácie o suplovaní...", COLOR_DIM, use_color))
+        print(colorize("│ [...] Querying substitution endpoints...", COLOR_DIM, use_color))
         missing_teachers = edupage.get_missing_teachers(target_date)
         changes = edupage.get_timetable_changes(target_date)
 
         # Missing teachers
-        print(colorize("\n👨‍🏫  Chýbajúci učitelia:", COLOR_BOLD, use_color))
+        print(colorize("├─ ABSENT TEACHERS " + "─" * (width - 21) + "┤", COLOR_CYAN, use_color))
         if missing_teachers:
             names = [colorize(t.name, COLOR_YELLOW, use_color) for t in missing_teachers]
-            print("   " + ", ".join(names))
+            print("│  " + ", ".join(names))
         else:
-            print(colorize("   Všetci učitelia sú prítomní (nikto nechýba).", COLOR_GREEN, use_color))
+            print(colorize("│  [OK] Full staff present. No missing teachers reported.", COLOR_GREEN, use_color))
 
         # Timetable changes
-        print(colorize("\n📋  Zmeny v rozvrhu:", COLOR_BOLD, use_color))
+        print(colorize("├─ LESSON CHANGES & COVER " + "─" * (width - 28) + "┤", COLOR_CYAN, use_color))
         if changes:
             col_class = 12
             col_lesson = 8
-            col_desc = 60
+            col_desc = 58
 
-            print(f"   ┌{'─' * (col_class + 2)}┬{'─' * (col_lesson + 2)}┬{'─' * (col_desc + 2)}┐")
-            print(f"   │ {'Trieda':<{col_class}} │ {'Hodina':<{col_lesson}} │ {'Zmena / Zastupovanie':<{col_desc}} │")
-            print(f"   ├{'─' * (col_class + 2)}┼{'─' * (col_lesson + 2)}┼{'─' * (col_desc + 2)}┤")
+            print(f"│  ┌{'─' * (col_class + 2)}┬{'─' * (col_lesson + 2)}┬{'─' * (col_desc + 2)}┐")
+            print(f"│  │ {'CLASS':<{col_class}} │ {'PERIOD':<{col_lesson}} │ {'CHANGE / COVER':<{col_desc}} │")
+            print(f"│  ├{'─' * (col_class + 2)}┼{'─' * (col_lesson + 2)}┼{'─' * (col_desc + 2)}┤")
 
             for c in changes:
                 cls_str = c.change_class[:col_class]
                 lsn_str = str(c.lesson_n)[:col_lesson]
                 title_str = c.title[:col_desc]
 
-                print(f"   │ {cls_str:<{col_class}} │ {lsn_str:<{col_lesson}} │ {colorize(title_str, COLOR_YELLOW, use_color):<{col_desc if not use_color else col_desc + 9}} │")
+                print(f"│  │ {cls_str:<{col_class}} │ {lsn_str:<{col_lesson}} │ {colorize(title_str, COLOR_YELLOW, use_color):<{col_desc if not use_color else col_desc + 9}} │")
 
-            print(f"   └{'─' * (col_class + 2)}┴{'─' * (col_lesson + 2)}┴{'─' * (col_desc + 2)}┘")
+            print(f"│  └{'─' * (col_class + 2)}┴{'─' * (col_lesson + 2)}┴{'─' * (col_desc + 2)}┘")
         else:
-            print(colorize("   Pre tento deň nie sú hlásené žiadne zmeny v rozvrhu.", COLOR_GREEN, use_color))
+            print(colorize("│  [OK] No changes or substitutions reported.", COLOR_GREEN, use_color))
+
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
 
     except Exception as e:
-        print(colorize(f"Chyba pri načítaní suplovania: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Substitution error: {e}", COLOR_RED, use_color))
     print()
 
 
@@ -710,23 +705,24 @@ def view_substitution(edupage: Edupage, target_date: Optional[date] = None, use_
 # ==============================================================================
 
 def render_meal_card(meal: Optional[Meal], title: str, use_color: bool = True) -> None:
-    """Vykreslí informácie o konkrétnom jedle (obed/desiata)."""
+    """Vykreslí informácie o konkrétnom jedle (obed/desiata) v btop štýle."""
     if not meal:
         return
 
     width = 86
-    print(colorize(f"\n┌─ [ 🍽️  {title.upper()} ] {'─' * (width - len(title) - 10)}┐", COLOR_CYAN, use_color))
+    card_title = f"MEAL [{title.upper()}]"
+    print(colorize(f"\n╭─ {card_title} {'─' * (width - len(card_title) - 6)}╮", COLOR_CYAN, use_color))
 
-    status_str = f"Objednané menu: {meal.ordered_meal}" if meal.ordered_meal else "ODHLÁSENÉ / NEOBJEDNANÉ"
+    status_str = f"[ORDERED: {meal.ordered_meal}]" if meal.ordered_meal else "[OFF / NOT ORDERED]"
     status_col = COLOR_GREEN if meal.ordered_meal else COLOR_RED
-    print(colorize("│ ", COLOR_CYAN, use_color) + f"Stav: {colorize(status_str, status_col, use_color)}")
+    print(colorize("│ ", COLOR_CYAN, use_color) + f"STATUS: {colorize(status_str, status_col, use_color)}")
 
     if meal.served_from and meal.served_to:
-        serving_time = f"Výdaj: {meal.served_from.strftime('%H:%M')} - {meal.served_to.strftime('%H:%M')}"
+        serving_time = f"Serving hours: {meal.served_from.strftime('%H:%M')} - {meal.served_to.strftime('%H:%M')}"
         print(colorize("│ ", COLOR_CYAN, use_color) + colorize(serving_time, COLOR_DIM, use_color))
 
     if meal.can_be_changed_until:
-        deadline = f"Možnosť zmeny/odhlásenia do: {meal.can_be_changed_until.strftime('%d.%m.%Y %H:%M')}"
+        deadline = f"Change deadline: {meal.can_be_changed_until.strftime('%Y-%m-%d %H:%M')}"
         print(colorize("│ ", COLOR_CYAN, use_color) + colorize(deadline, COLOR_DIM, use_color))
 
     div = "─" * (width - 2)
@@ -735,49 +731,52 @@ def render_meal_card(meal: Optional[Meal], title: str, use_color: bool = True) -
     if meal.menus:
         for m in meal.menus:
             is_selected = (meal.ordered_meal and meal.ordered_meal == m.number)
-            prefix = colorize("✓ ", COLOR_GREEN, use_color) if is_selected else "  "
+            prefix = colorize(">> ", COLOR_GREEN, use_color) if is_selected else "   "
             menu_num = colorize(f"[{m.number}]", COLOR_BOLD, use_color)
             name_str = m.name
             extra = []
             if m.weight:
                 extra.append(f"{m.weight}")
             if m.allergens:
-                extra.append(f"alergény: {m.allergens}")
+                extra.append(f"allergens: {m.allergens}")
             extra_str = f" ({', '.join(extra)})" if extra else ""
 
             print(colorize("│ ", COLOR_CYAN, use_color) + f"{prefix}{menu_num} {name_str}{colorize(extra_str, COLOR_DIM, use_color)}")
     else:
-        print(colorize("│  Pre toto jedlo nie je zverejnené žiadne menu.                              │", COLOR_DIM, use_color))
+        print(colorize("│  No menu items listed for this meal.                                       │", COLOR_DIM, use_color))
 
-    print(colorize(f"└{'─' * (width - 2)}┘", COLOR_CYAN, use_color))
+    print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
 
 
 def view_lunches(edupage: Edupage, target_date: Optional[date] = None, use_color: bool = True) -> None:
-    """Zobrazí jedálny lístok na daný deň s možnosťou objednania/odhlásenia."""
+    """Zobrazí jedálny lístok na daný deň v btop štýle."""
     target_date = target_date or date.today()
-    sk_days = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"]
-    day_name = sk_days[target_date.weekday()]
-    date_str = f"{day_name}, {target_date.strftime('%d.%m.%Y')}"
+    date_str = target_date.strftime("%Y-%m-%d")
 
-    print(colorize(f"\n══════════════════ 🍽️  JEDÁLNY LÍSTOK A OBEDY ({date_str}) ══════════════════", COLOR_CYAN, use_color))
+    width = 86
+    title = f"CAFETERIA & MEAL ORDERS [{date_str}]"
+    print(colorize(f"\n╭─ {title} {'─' * (width - len(title) - 6)}╮", COLOR_CYAN, use_color))
 
     try:
-        print(colorize("Načítavam jedálny lístok...", COLOR_DIM, use_color))
+        print(colorize("│ [...] Querying cafeteria menu...", COLOR_DIM, use_color))
         meals = edupage.get_meals(target_date)
 
         if not meals:
-            print(colorize("\n  Pre tento deň nie sú k dispozícii žiadne záznamy o strave.\n", COLOR_DIM, use_color))
+            print(colorize("│  No meal records found for this date.                                      │", COLOR_DIM, use_color))
+            print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
             return
 
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
+
         if meals.snack:
-            render_meal_card(meals.snack, "Desiata", use_color=use_color)
+            render_meal_card(meals.snack, "Snack", use_color=use_color)
         if meals.lunch:
-            render_meal_card(meals.lunch, "Obed", use_color=use_color)
+            render_meal_card(meals.lunch, "Lunch", use_color=use_color)
         if meals.afternoon_snack:
-            render_meal_card(meals.afternoon_snack, "Olovrant", use_color=use_color)
+            render_meal_card(meals.afternoon_snack, "Afternoon Snack", use_color=use_color)
 
     except Exception as e:
-        print(colorize(f"Chyba pri načítaní obedov: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Failed to load lunches: {e}", COLOR_RED, use_color))
     print()
 
 
@@ -786,12 +785,13 @@ def view_lunches(edupage: Edupage, target_date: Optional[date] = None, use_color
 # ==============================================================================
 
 def view_timeline_and_homework(edupage: Edupage, homework_only: bool = False, use_color: bool = True) -> None:
-    """Zobrazí domáce úlohy, písomky a notifikácie zo školskej časovej osi."""
-    title = "DOMÁCE ÚLOHY A TESTY" if homework_only else "ŠKOLSKÁ ČASOVÁ OS A OZNÁMENIA"
-    print(colorize(f"\n══════════════════ 📝  {title} ══════════════════", COLOR_CYAN, use_color))
+    """Zobrazí domáce úlohy, písomky a notifikácie v btop štýle."""
+    title = "HOMEWORK & EXAMS" if homework_only else "SCHOOL TIMELINE & ANNOUNCEMENTS"
+    width = 86
+    print(colorize(f"\n╭─ {title} {'─' * (width - len(title) - 6)}╮", COLOR_CYAN, use_color))
 
     try:
-        print(colorize("Načítavam notifikácie...", COLOR_DIM, use_color))
+        print(colorize("│ [...] Loading timeline feed...", COLOR_DIM, use_color))
         events = edupage.get_notifications()
 
         if homework_only:
@@ -806,29 +806,32 @@ def view_timeline_and_homework(edupage: Edupage, homework_only: bool = False, us
             events = [e for e in events if e.event_type in hw_types]
 
         if not events:
-            print(colorize("\n  Žiadne nové oznámenia alebo úlohy.\n", COLOR_GREEN, use_color))
+            print(colorize("│  [OK] No pending tasks, exams or notifications.                           │", COLOR_GREEN, use_color))
+            print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
             return
 
-        for e in events[:20]:  # Show latest 20
-            dt_str = e.timestamp.strftime("%d.%m.%Y %H:%M") if e.timestamp else "-"
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
+
+        for e in events[:20]:
+            dt_str = e.timestamp.strftime("%Y-%m-%d %H:%M") if e.timestamp else "-"
             type_label = e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type)
 
-            author_name = e.author.name if hasattr(e.author, "name") else str(e.author or "Systém")
-            deadline_str = f"  •  Termín odovzdania: {e.event_time.strftime('%d.%m.%Y')}" if e.event_time else ""
+            author_name = e.author.name if hasattr(e.author, "name") else str(e.author or "System")
+            deadline_str = f"  |  DEADLINE: {e.event_time.strftime('%Y-%m-%d')}" if e.event_time else ""
 
-            status_str = "[HOTOVO]" if e.is_done else "[ČAKÁ]"
+            status_str = "[DONE]" if e.is_done else "[PENDING]"
             status_col = COLOR_GREEN if e.is_done else COLOR_YELLOW
 
-            print(colorize(f"┌─ {dt_str} │ {type_label.upper()} │ od: {author_name}{deadline_str}", COLOR_CYAN, use_color))
-            print(colorize(f"│  Stav: ", COLOR_CYAN, use_color) + colorize(status_str, status_col, use_color))
-            # Clean text if JSON or HTML
+            card_head = f"EVENT [{type_label.upper()}]  {dt_str}  from: {author_name}{deadline_str}"
+            print(colorize(f"╭─ {card_head}", COLOR_CYAN, use_color))
+            print(colorize("│  STATUS: ", COLOR_CYAN, use_color) + colorize(status_str, status_col, use_color))
             text_lines = (e.text or "").split("\n")
             for line in text_lines[:5]:
                 print(colorize("│  ", COLOR_CYAN, use_color) + line)
-            print(colorize("└" + "─" * 70, COLOR_CYAN, use_color))
+            print(colorize("╰" + "─" * 70, COLOR_CYAN, use_color))
 
     except Exception as e:
-        print(colorize(f"Chyba pri načítaní notifikácií: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Failed to load timeline: {e}", COLOR_RED, use_color))
     print()
 
 
@@ -837,34 +840,38 @@ def view_timeline_and_homework(edupage: Edupage, homework_only: bool = False, us
 # ==============================================================================
 
 def view_ringing_times(edupage: Edupage, use_color: bool = True) -> None:
-    """Zobrazí najbližšie zvonenie a denný rozpis hodín/prestávok."""
-    print(colorize("\n══════════════════ 🔔  ZVONENIE A ČASY HODÍN ══════════════════", COLOR_CYAN, use_color))
+    """Zobrazí najbližšie zvonenie a denný rozpis hodín v btop štýle."""
+    width = 86
+    title = "BELL TIMES & BREAK SCHEDULE"
+    print(colorize(f"\n╭─ {title} {'─' * (width - len(title) - 6)}╮", COLOR_CYAN, use_color))
     now = datetime.now()
 
     try:
         ringing = edupage.get_next_ringing_time(now)
-        next_type = "začiatok PRESTÁVKY (koniec hodiny)" if ringing.type == RingingType.BREAK else "začiatok HODINY"
+        next_type = "BREAK START (lesson ends)" if ringing.type == RingingType.BREAK else "LESSON START"
         next_time_str = ringing.time.strftime("%H:%M")
 
-        print(colorize(f"\n🕒  Aktuálny čas: {now.strftime('%H:%M:%S')}", COLOR_BOLD, use_color))
-        print(colorize(f"🔔  Najbližšie zvonenie: {next_time_str} ({next_type})", COLOR_GREEN, use_color))
+        print(colorize("│ ", COLOR_CYAN, use_color) + f"CURRENT TIME: {now.strftime('%H:%M:%S')}")
+        print(colorize("│ ", COLOR_CYAN, use_color) + f"NEXT BELL:    {colorize(next_time_str, COLOR_GREEN, use_color)} ({next_type})")
 
         # Full day ringing schedule from edupage metadata
         if edupage.data and isinstance(edupage.data, dict) and "zvonenia" in edupage.data:
             ringing_times = edupage.data.get("zvonenia", [])
             if ringing_times:
-                print(colorize("\n📋  Denný rozpis zvonení školy:", COLOR_BOLD, use_color))
-                print("   ┌────────┬─────────────┬──────────────┐")
-                print("   │ Hodina │ Čas od - do │ Trvanie      │")
-                print("   ├────────┼─────────────┼──────────────┤")
+                print(colorize("├─ DAILY RINGING TIMELINE " + "─" * (width - 28) + "┤", COLOR_CYAN, use_color))
+                print("│  ┌────────┬─────────────┬──────────────┐")
+                print("│  │ PERIOD │ START - END │ DURATION     │")
+                print("│  ├────────┼─────────────┼──────────────┤")
                 for i, r in enumerate(ringing_times, start=1):
                     start = r.get("starttime", "-")
                     end = r.get("endtime", "-")
-                    print(f"   │ {i:<6} │ {start} - {end:<5} │ 45 minút     │")
-                print("   └────────┴─────────────┴──────────────┘")
+                    print(f"│  │ {i:<6} │ {start} - {end:<5} │ 45 min       │")
+                print("│  └────────┴─────────────┴──────────────┘")
+
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
 
     except Exception as e:
-        print(colorize(f"Chyba pri zisťovaní zvonenia: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Ringing error: {e}", COLOR_RED, use_color))
     print()
 
 
@@ -873,66 +880,85 @@ def view_ringing_times(edupage: Edupage, use_color: bool = True) -> None:
 # ==============================================================================
 
 def view_teachers_directory(edupage: Edupage, query: Optional[str] = None, use_color: bool = True) -> None:
-    """Zobrazí zoznam učiteľov školy s možnosťou vyhľadávania."""
-    print(colorize("\n══════════════════ 👨‍🏫  ZOZNAM UČITEĽOV ŠKOLY ══════════════════", COLOR_CYAN, use_color))
+    """Zobrazí zoznam učiteľov školy v btop štýle."""
+    width = 86
+    title = "STAFF & TEACHER ROSTER"
+    print(colorize(f"\n╭─ {title} {'─' * (width - len(title) - 6)}╮", COLOR_CYAN, use_color))
 
     try:
-        print(colorize("Načítavam zoznam učiteľov...", COLOR_DIM, use_color))
+        print(colorize("│ [...] Loading staff directory...", COLOR_DIM, use_color))
         teachers = edupage.get_teachers()
 
         if not teachers:
-            print(colorize("Zoznam učiteľov nie je dostupný.", COLOR_DIM, use_color))
+            print(colorize("│  No staff records available.                                              │", COLOR_DIM, use_color))
+            print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
             return
 
         if query:
             teachers = [t for t in teachers if query.lower() in t.name.lower()]
 
         teachers_sorted = sorted(teachers, key=lambda t: t.name)
-        col_name = 32
-        col_room = 20
+        col_name = 36
+        col_room = 24
 
-        print(f"\n   Nájdených učiteľov: {len(teachers_sorted)}")
-        print(f"   ┌{'─' * (col_name + 2)}┬{'─' * (col_room + 2)}┐")
-        print(f"   │ {'Meno učiteľa':<{col_name}} │ {'Kabinet / Učebňa':<{col_room}} │")
-        print(f"   ├{'─' * (col_name + 2)}┼{'─' * (col_room + 2)}┤")
+        print(colorize(f"│  Records matched: {len(teachers_sorted)}", COLOR_DIM, use_color))
+        print("│  ┌" + "─" * (col_name + 2) + "┬" + "─" * (col_room + 2) + "┐")
+        print(f"│  │ {'NAME':<{col_name}} │ {'ROOM / CABINET':<{col_room}} │")
+        print("│  ├" + "─" * (col_name + 2) + "┼" + "─" * (col_room + 2) + "┤")
 
         for t in teachers_sorted:
             room = t.classroom_name or "-"
-            print(f"   │ {colorize(t.name[:col_name], COLOR_BOLD, use_color):<{col_name if not use_color else col_name + 9}} │ {room[:col_room]:<{col_room}} │")
+            print(f"│  │ {colorize(t.name[:col_name], COLOR_BOLD, use_color):<{col_name if not use_color else col_name + 9}} │ {room[:col_room]:<{col_room}} │")
 
-        print(f"   └{'─' * (col_name + 2)}┴{'─' * (col_room + 2)}┘")
+        print("│  └" + "─" * (col_name + 2) + "┴" + "─" * (col_room + 2) + "┘")
+        print(colorize(f"╰{'─' * (width - 2)}╯", COLOR_CYAN, use_color))
 
     except Exception as e:
-        print(colorize(f"Chyba pri načítaní učiteľov: {e}", COLOR_RED, use_color))
+        print(colorize(f"[ERR] Failed to load staff directory: {e}", COLOR_RED, use_color))
     print()
 
 
 # ==============================================================================
-# Interactive Dashboard Main Loop
+# Interactive Dashboard Main Loop (btop Aesthetic)
 # ==============================================================================
 
 def interactive_dashboard(edupage: Edupage, use_color: bool = True) -> None:
-    """Hlavná navigačná slučka interaktívneho CLI dashboardu."""
+    """Hlavná navigačná slučka interaktívneho CLI dashboardu v btop štýle."""
+    width = 86
+
     while True:
         clear_screen()
         print_banner(edupage, use_color=use_color)
 
-        print()
-        print(colorize(" [1] 📊  Známky a hodnotenia       ", COLOR_GREEN, use_color) + colorize("• Prehľad známok, vážené priemery, predmety", COLOR_DIM, use_color))
-        print(colorize(" [2] 📅  Rozvrh hodín              ", COLOR_CYAN, use_color) + colorize("• Dnes, zajtra, celý týždeň alebo vlastný dátum", COLOR_DIM, use_color))
-        print(colorize(" [3] 🔄  Suplovanie a zmeny        ", COLOR_YELLOW, use_color) + colorize("• Chýbajúci učitelia, zastupovania, zmeny tried", COLOR_DIM, use_color))
-        print(colorize(" [4] 🍽️  Obedy a jedálny lístok    ", COLOR_MAGENTA, use_color) + colorize("• Menu dňa, stav objednávky, alergény", COLOR_DIM, use_color))
-        print(colorize(" [5] 📝  Domáce úlohy a oznámenia  ", COLOR_BLUE, use_color) + colorize("• Zadania úloh, termíny písomiek, správy", COLOR_DIM, use_color))
-        print(colorize(" [6] 🔔  Najbližšie zvonenie       ", COLOR_WHITE, use_color) + colorize("• Čas do ďalšej hodiny a rozpis zvonení", COLOR_DIM, use_color))
-        print(colorize(" [7] 👨‍🏫  Učitelia a kontakty       ", COLOR_CYAN, use_color) + colorize("• Zoznam pedagógov a ich kabinety", COLOR_DIM, use_color))
-        print(colorize(" [8] 💾  Správa prihlásenia        ", COLOR_DIM, use_color) + colorize("• Uloženie / vymazanie hesla z tohto PC", COLOR_DIM, use_color))
-        print(colorize(" [0] 🚪  Odhlásiť sa a ukončiť     ", COLOR_RED, use_color))
+        menu_header = f"╭─ MODULES {'─' * (width - 13)}╮"
+        print(colorize(menu_header, COLOR_CYAN, use_color))
+
+        def item(key: str, label: str, desc: str) -> None:
+            k = colorize(f"[{key}]", COLOR_BOLD, use_color)
+            lbl = colorize(f"{label:<14}", COLOR_WHITE, use_color)
+            d = colorize(desc, COLOR_DIM, use_color)
+            line = f"│  {k} {lbl} {d}"
+            print(f"{line:<{width - 2 if not use_color else width + 18}} │")
+
+        item("1", "GRADES", "Marks breakdown, weighted averages & term history")
+        item("2", "TIMETABLE", "Daily and weekly schedules, room & teacher cover")
+        item("3", "SUBSTITUTION", "Staff absences, timetable changes & cancellations")
+        item("4", "LUNCHES", "Daily cafeteria menu, meal status & deadlines")
+        item("5", "HOMEWORK", "Upcoming assignments, exams & timeline events")
+        item("6", "BELL TIMES", "Ringing schedule, break countdown & periods")
+        item("7", "STAFF", "Teacher staff directory & cabinet rooms")
+        item("8", "CONFIG", "Session credentials management on this machine")
+        item("q", "QUIT", "Terminate session and logout")
+
+        menu_footer = f"╰{'─' * (width - 2)}╯"
+        print(colorize(menu_footer, COLOR_CYAN, use_color))
         print()
 
-        choice = input("Zvoľte možnosť [0-8]: ").strip().lower()
+        prompt_str = colorize("edupage:~$ ", COLOR_BOLD, use_color)
+        choice = input(prompt_str).strip().lower()
 
         if choice in ["0", "q", "exit", "quit"]:
-            print(colorize("\nOdhlasujem sa z EduPage... Dovidenia!", COLOR_DIM, use_color))
+            print(colorize("\n[OK] Logging out. Session ended.", COLOR_DIM, use_color))
             try:
                 edupage.logout()
             except Exception:
@@ -943,123 +969,123 @@ def interactive_dashboard(edupage: Edupage, use_color: bool = True) -> None:
             clear_screen()
             print_banner(edupage, use_color=use_color)
             view_grades(edupage, use_color=use_color)
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "2":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            print(colorize("\n📅  ROZVRH HODÍN - ZVOĽTE OBDOBIE:", COLOR_BOLD, use_color))
-            print(" [1] Dnes")
-            print(" [2] Zajtra")
-            print(" [3] Celý aktuálny týždeň (pondelok - piatok)")
-            print(" [4] Zadať vlastný dátum (YYYY-MM-DD)")
-            sub_ch = input("\nVoľba [1-4, Enter=Dnes]: ").strip()
+            print(colorize("\nTIMETABLE SELECTION:", COLOR_BOLD, use_color))
+            print("  [1] Today")
+            print("  [2] Tomorrow")
+            print("  [3] Current Week (Monday - Friday)")
+            print("  [4] Specific Date (YYYY-MM-DD)")
+            sub_ch = input("\n  select [1-4, default=1]: ").strip()
 
             if sub_ch == "2":
                 view_timetable(edupage, target_date=date.today() + timedelta(days=1), use_color=use_color)
             elif sub_ch == "3":
                 view_timetable(edupage, week_mode=True, use_color=use_color)
             elif sub_ch == "4":
-                custom_d = input("Zadajte dátum (napr. 2026-11-25): ").strip()
+                custom_d = input("  enter date (e.g. 2026-11-25): ").strip()
                 try:
                     parsed_d = datetime.strptime(custom_d, "%Y-%m-%d").date()
                     view_timetable(edupage, target_date=parsed_d, use_color=use_color)
                 except Exception:
-                    print(colorize("Neplatný formát dátumu!", COLOR_RED, use_color))
+                    print(colorize("  [ERR] Invalid date format.", COLOR_RED, use_color))
             else:
                 view_timetable(edupage, target_date=date.today(), use_color=use_color)
 
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "3":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            print(colorize("\n🔄  SUPLOVANIE - ZVOĽTE DEŇ:", COLOR_BOLD, use_color))
-            print(" [1] Dnes")
-            print(" [2] Zajtra")
-            print(" [3] Zadať vlastný dátum (YYYY-MM-DD)")
-            sub_ch = input("\nVoľba [1-3, Enter=Dnes]: ").strip()
+            print(colorize("\nSUBSTITUTION SELECTION:", COLOR_BOLD, use_color))
+            print("  [1] Today")
+            print("  [2] Tomorrow")
+            print("  [3] Specific Date (YYYY-MM-DD)")
+            sub_ch = input("\n  select [1-3, default=1]: ").strip()
 
             if sub_ch == "2":
                 view_substitution(edupage, target_date=date.today() + timedelta(days=1), use_color=use_color)
             elif sub_ch == "3":
-                custom_d = input("Zadajte dátum (napr. 2026-11-25): ").strip()
+                custom_d = input("  enter date (e.g. 2026-11-25): ").strip()
                 try:
                     parsed_d = datetime.strptime(custom_d, "%Y-%m-%d").date()
                     view_substitution(edupage, target_date=parsed_d, use_color=use_color)
                 except Exception:
-                    print(colorize("Neplatný formát dátumu!", COLOR_RED, use_color))
+                    print(colorize("  [ERR] Invalid date format.", COLOR_RED, use_color))
             else:
                 view_substitution(edupage, target_date=date.today(), use_color=use_color)
 
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "4":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            print(colorize("\n🍽️  JEDÁLNY LÍSTOK - ZVOĽTE DEŇ:", COLOR_BOLD, use_color))
-            print(" [1] Dnes")
-            print(" [2] Zajtra")
-            print(" [3] Zadať vlastný dátum")
-            sub_ch = input("\nVoľba [1-3, Enter=Dnes]: ").strip()
+            print(colorize("\nLUNCHES SELECTION:", COLOR_BOLD, use_color))
+            print("  [1] Today")
+            print("  [2] Tomorrow")
+            print("  [3] Specific Date (YYYY-MM-DD)")
+            sub_ch = input("\n  select [1-3, default=1]: ").strip()
 
             target_d = date.today()
             if sub_ch == "2":
                 target_d = date.today() + timedelta(days=1)
             elif sub_ch == "3":
-                custom_d = input("Zadajte dátum (napr. 2026-11-25): ").strip()
+                custom_d = input("  enter date (e.g. 2026-11-25): ").strip()
                 try:
                     target_d = datetime.strptime(custom_d, "%Y-%m-%d").date()
                 except Exception:
-                    print(colorize("Neplatný formát dátumu!", COLOR_RED, use_color))
+                    print(colorize("  [ERR] Invalid date format.", COLOR_RED, use_color))
 
             view_lunches(edupage, target_date=target_d, use_color=use_color)
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "5":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            print(colorize("\n📝  ČASOVÁ OS - ZVOĽTE FILTER:", COLOR_BOLD, use_color))
-            print(" [1] Iba domáce úlohy a písomky")
-            print(" [2] Všetky notifikácie a správy")
-            sub_ch = input("\nVoľba [1-2, Enter=1]: ").strip()
+            print(colorize("\nTIMELINE FILTER:", COLOR_BOLD, use_color))
+            print("  [1] Homework & exams only")
+            print("  [2] All announcements and events")
+            sub_ch = input("\n  select [1-2, default=1]: ").strip()
             hw_only = (sub_ch != "2")
             view_timeline_and_homework(edupage, homework_only=hw_only, use_color=use_color)
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "6":
             clear_screen()
             print_banner(edupage, use_color=use_color)
             view_ringing_times(edupage, use_color=use_color)
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "7":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            q = input("Hľadať učiteľa podľa mena (Enter pre zobrazenie všetkých): ").strip()
+            q = input("Search staff by name (Enter for all): ").strip()
             view_teachers_directory(edupage, query=q if q else None, use_color=use_color)
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
         elif choice == "8":
             clear_screen()
             print_banner(edupage, use_color=use_color)
-            print(colorize("\n💾  SPRÁVA ULOŽENÉHO PRIHLÁSENIA:", COLOR_BOLD, use_color))
-            print(" [1] Zmazať uložené prihlasovacie údaje z tohto PC")
-            print(" [2] Znova uložiť aktuálne prihlásenie")
-            sub_ch = input("\nVoľba [1/2]: ").strip()
+            print(colorize("\nCREDENTIALS CONFIG:", COLOR_BOLD, use_color))
+            print("  [1] Delete stored credentials from this PC")
+            print("  [2] Save / update current login credentials")
+            sub_ch = input("\n  select [1/2]: ").strip()
 
             if sub_ch == "1":
                 if clear_saved_credentials():
-                    print(colorize("✓ Uložené údaje boli úspešne vymazané.", COLOR_GREEN, use_color))
+                    print(colorize("  [OK] Saved credentials cleared.", COLOR_GREEN, use_color))
                 else:
-                    print(colorize("Žiadne uložené údaje sa nenašli.", COLOR_DIM, use_color))
+                    print(colorize("  [i] No stored credentials found.", COLOR_DIM, use_color))
             elif sub_ch == "2":
-                pass_input = getpass.getpass("Potvrďte heslo pre uloženie: ")
+                pass_input = getpass.getpass("  Confirm password to save: ")
                 if pass_input:
                     save_credentials(edupage.username, pass_input, edupage.subdomain)
-                    print(colorize("✓ Údaje boli uložené.", COLOR_GREEN, use_color))
+                    print(colorize("  [OK] Credentials saved successfully.", COLOR_GREEN, use_color))
 
-            input("\nStlačte Enter pre návrat do hlavného menu...")
+            input("\n[press Enter to return]")
 
 
 # ==============================================================================
@@ -1069,69 +1095,69 @@ def interactive_dashboard(edupage: Edupage, use_color: bool = True) -> None:
 def main():
     parser = argparse.ArgumentParser(
         prog="edupage-cli",
-        description="EduPage CLI - Moderný interaktívny nástroj pre známky, rozvrh, suplovanie a obedy.",
+        description="EduPage CLI - Minimalist btop-style terminal client for EduPage.",
     )
     parser.add_argument(
         "-u",
         "--username",
         type=str,
         default=None,
-        help="Prihlasovacie meno alebo e-mail do EduPage.",
+        help="EduPage username or email.",
     )
     parser.add_argument(
         "-p",
         "--password",
         type=str,
         default=None,
-        help="Heslo (ak nezadáte, program sa spýta bezpečne).",
+        help="Password (prompted securely if omitted).",
     )
     parser.add_argument(
         "-s",
         "--subdomain",
         type=str,
         default=None,
-        help="Subdoména školy (napr. 'ssnd' pre ssnd.edupage.org).",
+        help="School subdomain (e.g. 'ssnd' for ssnd.edupage.org).",
     )
     parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Vypnúť farebné zvýrazňovanie v termináli.",
+        help="Disable ANSI color output.",
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Príkazy pre priame zobrazenie:")
+    subparsers = parser.add_subparsers(dest="command", help="Direct non-interactive subcommands:")
 
     # Command: grades
-    p_grades = subparsers.add_parser("grades", help="Zobraziť prehľad známok.")
-    p_grades.add_argument("--subject", type=str, default=None, help="Filter predmetu.")
-    p_grades.add_argument("--json", action="store_true", help="Výpis v JSON formáte.")
+    p_grades = subparsers.add_parser("grades", help="Show grades overview.")
+    p_grades.add_argument("--subject", type=str, default=None, help="Filter by subject.")
+    p_grades.add_argument("--json", action="store_true", help="Output raw JSON.")
 
     # Command: timetable
-    p_tt = subparsers.add_parser("timetable", help="Zobraziť rozvrh hodín.")
-    p_tt.add_argument("--tomorrow", action="store_true", help="Rozvrh na zajtra.")
-    p_tt.add_argument("--week", action="store_true", help="Rozvrh na celý aktuálny týždeň.")
-    p_tt.add_argument("--date", type=str, default=None, help="Dátum vo formáte YYYY-MM-DD.")
+    p_tt = subparsers.add_parser("timetable", help="Show timetable.")
+    p_tt.add_argument("--tomorrow", action="store_true", help="Show tomorrow's schedule.")
+    p_tt.add_argument("--week", action="store_true", help="Show entire week.")
+    p_tt.add_argument("--date", type=str, default=None, help="Date in YYYY-MM-DD format.")
 
     # Command: substitution
-    p_sub = subparsers.add_parser("substitution", help="Zobraziť suplovanie a chýbajúcich učiteľov.")
-    p_sub.add_argument("--tomorrow", action="store_true", help="Suplovanie na zajtra.")
-    p_sub.add_argument("--date", type=str, default=None, help="Dátum vo formáte YYYY-MM-DD.")
+    p_sub = subparsers.add_parser("substitution", help="Show substitution and missing teachers.")
+    p_sub.add_argument("--tomorrow", action="store_true", help="Show tomorrow's substitution.")
+    p_sub.add_argument("--date", type=str, default=None, help="Date in YYYY-MM-DD format.")
 
     # Command: lunches
-    p_lunches = subparsers.add_parser("lunches", help="Zobraziť jedálny lístok a obedy.")
-    p_lunches.add_argument("--date", type=str, default=None, help="Dátum vo formáte YYYY-MM-DD.")
+    p_lunches = subparsers.add_parser("lunches", help="Show cafeteria menu.")
+    p_lunches.add_argument("--date", type=str, default=None, help="Date in YYYY-MM-DD format.")
 
     # Command: homework
-    p_hw = subparsers.add_parser("homework", help="Zobraziť domáce úlohy a testy.")
+    p_hw = subparsers.add_parser("homework", help="Show homework and exams.")
 
     # Command: ringing
-    p_ring = subparsers.add_parser("ringing", help="Zobraziť čas najbližšieho zvonenia.")
+    p_ring = subparsers.add_parser("ringing", help="Show next bell time.")
 
     # Command: teachers
-    p_teach = subparsers.add_parser("teachers", help="Zoznam učiteľov školy.")
-    p_teach.add_argument("--query", "-q", type=str, default=None, help="Vyhľadať učiteľa podľa mena.")
+    p_teach = subparsers.add_parser("teachers", help="Show staff directory.")
+    p_teach.add_argument("--query", "-q", type=str, default=None, help="Search staff by name.")
 
     # Command: logout
-    subparsers.add_parser("logout", help="Zmazať lokálne uložené prihlasovacie údaje.")
+    subparsers.add_parser("logout", help="Clear saved credentials.")
 
     args = parser.parse_args()
 
@@ -1140,9 +1166,9 @@ def main():
     # Logout command
     if args.command == "logout":
         if clear_saved_credentials():
-            print(colorize("✓ Uložené prihlasovacie údaje boli odstránené.", COLOR_GREEN, use_color))
+            print(colorize("[OK] Stored credentials deleted.", COLOR_GREEN, use_color))
         else:
-            print(colorize("Žiadne uložené údaje sa nenašli.", COLOR_DIM, use_color))
+            print(colorize("[i] No saved credentials found.", COLOR_DIM, use_color))
         sys.exit(0)
 
     # Login to EduPage
@@ -1158,7 +1184,6 @@ def main():
         sys.exit(1)
 
     try:
-        # Non-interactive direct commands
         if args.command == "grades":
             view_grades(edupage, use_color=use_color, subject_filter=args.subject)
         elif args.command == "timetable":
@@ -1187,7 +1212,6 @@ def main():
         elif args.command == "teachers":
             view_teachers_directory(edupage, query=args.query, use_color=use_color)
         else:
-            # Default interactive dashboard
             interactive_dashboard(edupage, use_color=use_color)
 
     finally:
