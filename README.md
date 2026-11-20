@@ -4,32 +4,31 @@ This Python library allows easy access to EduPage. It's not a Selenium web scrap
 
 # EduPage CLI
 
-Moderný interaktívny nástroj príkazového riadku pre EduPage so všetkými funkciami:
+Moderný minimalistický terminálový monitor a klient pre EduPage v štýle btop:
 
 ```bash
-# Spustenie interaktívneho dashboardu
+# Spustenie interaktívneho monitora
 python cli.py
 # alebo vo Windows dvojklik na run.bat
 ```
 
-### Čo všetko dokáže:
-- **📊 Známky a hodnotenia**: Zoznam známok podľa predmetov, vážené priemery, percentá, detaily písomiek.
-- **📅 Rozvrh hodín**: Dnešok, zajtrajšok, celý týždeň alebo vlastný dátum, zobrazenie odpadnutých hodín, učební a učiteľov.
-- **🔄 Suplovanie**: Zoznam chýbajúcich učiteľov a zmeny v rozvrhu (zastupovania).
-- **🍽️ Obedy a jedálny lístok**: Prehľad jedál na dnes a celý týždeň, stav objednávky (Menu A/B, odhlásené), alergény a gramáže.
-- **📝 Domáce úlohy a časová os**: Zoznam zadaných úloh, termíny písomiek a správy od učiteľov.
-- **🔔 Zvonenie**: Čas najbližšieho zvonenia, dĺžka prestávky a denný rozpis hodín školy.
-- **👨‍🏫 Učitelia a kontakty**: Vyhľadávanie učiteľov a ich kabinety / učebne.
-- **💾 Bezpečné ukladanie prihlásenia**: Možnosť zapamätať prihlásenie na vašom PC, aby ste nemuseli heslo zadávať zakaždým.
+### Hlavné vlastnosti:
+- **Domovská obrazovka (Home Dashboard)**: Živý monitor s hodinami, časom posledného refreshu, dnešným rozvrhom (s indikáciou aktuálnej a nasledujúcej hodiny), poslednými známkami, dnešným obedom v jedálni a aktívnymi domácimi úlohami.
+- **Celoobrazovkový prehľad známok**: Karty predmetov so študijným priemerom (GPA), váženými priemermi, percentami a podrobnými tabuľkami hodnotení.
+- **Rozvrh hodín**: Prehľad na dnes, zajtrajšok, celý týždeň alebo ľubovoľný dátum s vyznačením odpadnutých a online hodín.
+- **Suplovanie**: Okamžitý prehľad o chýbajúcich učiteľoch a zastupovaniach.
+- **Jedáleň a obedy**: Stav objednávky (Menu A/B, odhlásené), časy výdaja, alergény.
+- **Automatické zapamätanie údajov**: Automaticky si pamätá prihlasovacie meno a subdoménu `ssnd`.
+- **Rýchla klávesová navigácia**: Príkazový riadok v spodnej časti (`edupage:~$`) pre prepínanie pohľadov.
 
 ### Rýchle príkazy (neinteraktívny režim):
 ```bash
-python cli.py grades                   # Prehľad známok
+python cli.py grades                   # Celoobrazovkový prehľad známok
 python cli.py timetable --week         # Rozvrh na celý týždeň
 python cli.py substitution --tomorrow  # Suplovanie na zajtra
 python cli.py lunches                  # Dnešný obed a jedálny lístok
 python cli.py homework                 # Domáce úlohy a písomky
-python cli.py ringing                  # Najbližšie zvonenie
+python cli.py ringing                  # Najbližšie zvonenie a rozpis
 python cli.py teachers -q "novak"      # Vyhľadanie učiteľa
 python cli.py logout                   # Zmazanie uloženého prihlásenia
 ```
