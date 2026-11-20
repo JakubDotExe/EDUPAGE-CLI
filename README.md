@@ -4,25 +4,35 @@ This Python library allows easy access to EduPage. It's not a Selenium web scrap
 
 # EduPage CLI
 
-Súčasťou je jednoduchý CLI nástroj na zobrazenie prehľadu známok priamo v termináli:
+Moderný interaktívny nástroj príkazového riadku pre EduPage so všetkými funkciami:
 
 ```bash
-# Spustenie priamo cez Python
+# Spustenie interaktívneho dashboardu
 python cli.py
-
-# Alebo cez nainštalovaný príkaz (po pip install -e .)
-edupage-cli
+# alebo vo Windows dvojklik na run.bat
 ```
 
-### Možnosti a parametre:
-- `-u`, `--username`: Prihlasovacie meno alebo e-mail (alebo premenná prostredia `EDUPAGE_USERNAME`)
-- `-p`, `--password`: Heslo (alebo premenná prostredia `EDUPAGE_PASSWORD`). Ak nezadáte, program si ho bezpečne vyžiada cez `getpass`.
-- `-s`, `--subdomain`: Subdoména školy (napr. `gympos` pre `gympos.edupage.org`). Ak vynecháte, pokúsi sa o automatické zistenie.
-- `-t`, `--term`: Polrok (`1` pre 1. polrok, `2` pre 2. polrok).
-- `-y`, `--year`: Školský rok (napr. `2026`).
-- `--subject`: Filtrovanie podľa názvu predmetu (napr. `--subject Matematika`).
-- `--json`: Výpis v JSON formáte.
-- `--no-color`: Vypnutie farebného formátovania.
+### Čo všetko dokáže:
+- **📊 Známky a hodnotenia**: Zoznam známok podľa predmetov, vážené priemery, percentá, detaily písomiek.
+- **📅 Rozvrh hodín**: Dnešok, zajtrajšok, celý týždeň alebo vlastný dátum, zobrazenie odpadnutých hodín, učební a učiteľov.
+- **🔄 Suplovanie**: Zoznam chýbajúcich učiteľov a zmeny v rozvrhu (zastupovania).
+- **🍽️ Obedy a jedálny lístok**: Prehľad jedál na dnes a celý týždeň, stav objednávky (Menu A/B, odhlásené), alergény a gramáže.
+- **📝 Domáce úlohy a časová os**: Zoznam zadaných úloh, termíny písomiek a správy od učiteľov.
+- **🔔 Zvonenie**: Čas najbližšieho zvonenia, dĺžka prestávky a denný rozpis hodín školy.
+- **👨‍🏫 Učitelia a kontakty**: Vyhľadávanie učiteľov a ich kabinety / učebne.
+- **💾 Bezpečné ukladanie prihlásenia**: Možnosť zapamätať prihlásenie na vašom PC, aby ste nemuseli heslo zadávať zakaždým.
+
+### Rýchle príkazy (neinteraktívny režim):
+```bash
+python cli.py grades                   # Prehľad známok
+python cli.py timetable --week         # Rozvrh na celý týždeň
+python cli.py substitution --tomorrow  # Suplovanie na zajtra
+python cli.py lunches                  # Dnešný obed a jedálny lístok
+python cli.py homework                 # Domáce úlohy a písomky
+python cli.py ringing                  # Najbližšie zvonenie
+python cli.py teachers -q "novak"      # Vyhľadanie učiteľa
+python cli.py logout                   # Zmazanie uloženého prihlásenia
+```
 
 # Installing
 __Warning__: Requires Python >= 3.9!
