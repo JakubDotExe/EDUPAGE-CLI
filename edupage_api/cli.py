@@ -22,7 +22,7 @@ from edupage_api.exceptions import (
     RetryLaterException,
     SecondFactorFailedException,
 )
-from edupage_api.grades import EduGrade, EduTextGrade, Term
+from edupage_api.grades import EduGrade, EduTextGrade, Grades, Term
 from edupage_api.lunches import Meal, Meals, Menu
 from edupage_api.people import EduAccount, EduStudent, EduTeacher, People
 from edupage_api.ringing import RingingTime, RingingType
@@ -1795,6 +1795,7 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "lunches": None,
         "tasks": [],
         "all_grades": [],
+        "commendations": [],
     }
 
     # 1. Ringing
@@ -1917,10 +1918,57 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
-    # 3. Grades & Analytics
+    # 3. Grades, Subject Breakdowns & Commendations (Pochvaly / Poznámky)
     try:
         grades = edupage.get_grades()
         data["total_marks"] = len(grades)
+        dbi_subjects = dbi.get("subjects", {}) if isinstance(dbi, dict) else {}
+
+        # Extract Pochvaly / Poznámky from vsetkyVcelicky + typyPoznamok
+        try:
+            raw_gd = Grades(edupage)._Grades__get_grade_data()
+            type_map: Dict[str, dict] = {}
+            for tp in raw_gd.get("typyPoznamok", []) or []:
+                tid = str(tp.get("id") if tp.get("id") is not None else "").strip()
+                if tid:
+                    type_map[tid] = tp
+
+            for vc in raw_gd.get("vsetkyVcelicky", []) or []:
+                p_typ = str(vc.get("p_typ") if vc.get("p_typ") is not None else "").strip()
+                tp_info = type_map.get(p_typ, {})
+                pos = int(tp_info.get("positivity") or 0)
+                if pos == 0:
+                    if p_typ in ("1", "3", "4", "6", "7", "8", "9", "10", "11", "medal", "key"):
+                        pos = 1
+                    elif p_typ in ("2", "5", "12", "13", "14", "minus", "slippers", "mobile", "clock", "backpack"):
+                        pos = -1
+
+                cat = "POCHVALA" if pos > 0 else ("POZNÁMKA" if pos < 0 else "ZÁZNAM")
+                t_label = str(tp_info.get("nazov") or "").strip()
+                if not t_label:
+                    t_label = "Pochvala" if pos > 0 else ("Poznámka / Pokarhanie" if pos < 0 else "Výchovný záznam")
+
+                raw_dt = str(vc.get("p_datum") or vc.get("timestamp") or "-").strip()
+                dt_short = raw_dt[:16] if len(raw_dt) >= 16 else raw_dt
+                subj_vc = str(vc.get("predmet_meno") or "Správanie").strip()
+                tc_vc = f"{vc.get('ucitel_meno') or ''} {vc.get('ucitel_priezvisko') or ''}".strip() or "-"
+                st_vc = "Potvrdené rodičom" if vc.get("p_datum_view_rodic") else (
+                    "Schválené" if vc.get("schvalene_stav") == "schvalene" else "Zapísané"
+                )
+                txt_vc = str(vc.get("p_text") or "-").replace("\n", " ").strip()
+
+                data["commendations"].append({
+                    "id": str(vc.get("VcelickaID") or ""),
+                    "date": dt_short,
+                    "category": cat,
+                    "type_name": t_label,
+                    "subject": subj_vc,
+                    "teacher": tc_vc,
+                    "state": st_vc,
+                    "text": txt_vc,
+                })
+        except Exception:
+            pass
 
         # Process ALL grades for distribution so nothing is skipped
         dist = [0, 0, 0, 0, 0]
@@ -1964,6 +2012,16 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         for g in grades:
             by_subj.setdefault(g.subject_name or "Unknown", []).append(g)
 
+        teacher_by_short: Dict[str, str] = {}
+        for wk_src in (data.get("regular_week_timetable") or {}, data.get("week_timetable") or {}):
+            for d_obj in wk_src.values():
+                for les in d_obj.get("lessons", []) or []:
+                    s_sh = str(les.get("subject_short") or "").strip()
+                    t_fl = str(les.get("teacher") or "").strip()
+                    if s_sh and t_fl and t_fl != "-" and s_sh not in teacher_by_short:
+                        teacher_by_short[s_sh] = t_fl
+
+        verbal_names = ["Výborný", "Chválitebný", "Dobrý", "Dostatočný", "Nedostatočný"]
         subject_averages = []
         for s_name, glist in sorted(by_subj.items(), key=lambda x: x[0]):
             s_stat = calculate_subject_stats(glist)
@@ -1989,13 +2047,77 @@ def export_dashboard_json(edupage: Edupage) -> dict:
 
             if subj_avg is not None:
                 subject_averages.append(subj_avg)
+                final_mark = max(1, min(5, int(round(subj_avg))))
+                final_str = str(final_mark)
+                verbal_str = verbal_names[final_mark - 1]
+            else:
+                final_str = "-"
+                verbal_str = "Nehodnotený"
+
+            # Resolve full Slovak subject name from dbi
+            sid = str(glist[0].subject_id) if glist and glist[0].subject_id is not None else ""
+            s_row = dbi_subjects.get(sid, {})
+            full_s_name = str(s_row.get("name") or s_name).strip()
+            short_s_name = str(s_row.get("short") or s_name).strip()
+            subj_teacher = next((g.teacher.name for g in glist if g.teacher and g.teacher.name), None) or teacher_by_short.get(short_s_name, "-")
+
+            # Build per-subject distribution, chronological marks preview & detailed grade rows
+            subj_dist = [0, 0, 0, 0, 0]
+            chrono_subj = sorted(glist, key=lambda g: g.date if g.date else datetime.min)
+            marks_preview = []
+            for g in chrono_subj:
+                marks_preview.append(format_grade_value(g))
+                n_val = parse_slovak_grade(g)
+                if n_val is not None and 1.0 <= n_val <= 5.0:
+                    subj_dist[min(4, max(0, int(round(n_val)) - 1))] += 1
+
+            subj_grade_rows = []
+            for g in sorted(glist, key=lambda g: g.date if g.date else datetime.min, reverse=True):
+                n_val = parse_slovak_grade(g)
+                if g.max_points and g.grade_n is not None:
+                    pts_str = f"{g.grade_n}/{g.max_points:g}"
+                elif g.percent is not None:
+                    pts_str = f"{g.percent:.1f}%"
+                else:
+                    pts_str = "-"
+
+                pct_str = f"{g.percent:.1f}%" if g.percent is not None else "-"
+                c_avg_str = str(g.class_grade_avg) if g.class_grade_avg else "-"
+                tc_name = g.teacher.name if (g.teacher and g.teacher.name) else subj_teacher
+                clean_details = [
+                    str(x).strip()
+                    for x in (g.more_details or [])
+                    if str(x).strip() and not str(x).strip().startswith("{")
+                ]
+                note_txt = (str(g.comment).strip() if g.comment else "") or "; ".join(clean_details) or "-"
+
+                subj_grade_rows.append({
+                    "date": g.date.strftime("%Y-%m-%d") if g.date else "-",
+                    "grade": format_grade_value(g),
+                    "numeric_val": f"{n_val:.1f}" if n_val is not None else "-",
+                    "points_str": pts_str,
+                    "percent_str": pct_str,
+                    "weight": format_weight(g),
+                    "class_avg": c_avg_str,
+                    "title": (g.title or "-").strip(),
+                    "teacher": tc_name,
+                    "note": note_txt,
+                })
 
             pct_display = f"{s_stat['avg_percent']:.1f}%" if s_stat["avg_percent"] is not None else "-"
             data["subjects"].append({
                 "name": s_name,
+                "short": short_s_name,
+                "full_name": full_s_name,
+                "teacher": subj_teacher,
                 "count": len(glist),
                 "avg": avg_display,
                 "percent": pct_display,
+                "final_grade": final_str,
+                "verbal": verbal_str,
+                "marks_preview": marks_preview,
+                "distribution": subj_dist,
+                "grades": subj_grade_rows,
             })
 
         # Slovak GPA calculation: arithmetic mean of subject averages
@@ -2019,12 +2141,21 @@ def export_dashboard_json(edupage: Edupage) -> dict:
             data["standing"] = "Nehodnotený"
 
         for g in sorted(grades, key=lambda g: g.date if g.date else datetime.min, reverse=True):
+            clean_details = [
+                str(x).strip()
+                for x in (g.more_details or [])
+                if str(x).strip() and not str(x).strip().startswith("{")
+            ]
+            s_sh = g.subject_name or "Unknown"
+            tc_g = (g.teacher.name if (g.teacher and g.teacher.name) else None) or teacher_by_short.get(s_sh, "-")
             data["all_grades"].append({
                 "date": g.date.strftime("%Y-%m-%d") if g.date else "-",
-                "subject": g.subject_name or "Unknown",
+                "subject": s_sh,
                 "grade": format_grade_value(g),
                 "weight": format_weight(g),
                 "title": g.title or "-",
+                "teacher": tc_g,
+                "note": (str(g.comment).strip() if g.comment else "") or "; ".join(clean_details),
                 "comment": format_comment_and_teacher(g),
             })
     except Exception:
