@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * EduPage CLI - Modern btop-style Terminal Monitor
+ * EduPage CLI - btop-style Terminal Monitor
  * Full-featured high-contrast interactive TUI with multi-tab navigation,
  * real-time schedule, Slovak GPA analytics, cafeteria menu, and homework viewer.
  */
@@ -29,7 +29,7 @@ const screen = blessed.screen({
   },
 });
 
-// App State
+// Navigation State
 const TABS = ['monitor', 'grades', 'timetable', 'lunches', 'tasks'];
 const TAB_LABELS = [
   ' 1: MONITOR ',
@@ -38,25 +38,15 @@ const TAB_LABELS = [
   ' 4: OBEDY ',
   ' 5: ÚLOHY ',
 ];
-let activeTabIndex = 0; // 0: monitor, 1: grades, 2: timetable, 3: lunches, 4: tasks
+let activeTabIndex = 0;
 let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
 
 // ==============================================================================
-// Styles & Theme (High-Contrast btop Theme)
+// Styles & Theme
 // ==============================================================================
 
 const STYLES = {
-  box: {
-    border: { type: 'line', fg: 'grey' },
-    style: {
-      border: { fg: 'grey' },
-      fg: 'white',
-      bg: 'black',
-    },
-  },
-  focusedBorder: { fg: 'green' },
-  unfocusedBorder: { fg: 'grey' },
   table: {
     keys: true,
     vi: true,
@@ -71,18 +61,18 @@ const STYLES = {
 };
 
 // ==============================================================================
-// Top Header & Tab Navigation Bar
+// Top Header Box (Framed Master Header)
 // ==============================================================================
 
-// System info header (Rows 0-2)
 const headerBox = blessed.box({
   parent: screen,
   top: 0,
   left: 0,
   width: '100%',
-  height: 3,
+  height: 4,
   tags: true,
-  border: { type: 'line' },
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}{white-fg}[ EDUPAGE BTOP MONITOR ]{/white-fg}{/bold} ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -90,49 +80,44 @@ const headerBox = blessed.box({
   },
 });
 
-// Tab Bar (Row 3, Height 1)
-const tabBar = blessed.box({
-  parent: screen,
-  top: 3,
-  left: 0,
-  width: '100%',
-  height: 1,
-  tags: true,
-  style: {
-    fg: 'white',
-    bg: 'black',
-  },
-});
+// ==============================================================================
+// Bottom Footer Box (Framed Commands Bar)
+// ==============================================================================
 
-// Bottom Status / Keybindings Bar (Last row)
-const footerBar = blessed.box({
+const footerBox = blessed.box({
   parent: screen,
   bottom: 0,
   left: 0,
   width: '100%',
-  height: 1,
+  height: 3,
   tags: true,
-  content: ' {bold}[1-5]{/bold} Prepínanie kariet  │  {bold}[Tab / Šípky]{/bold} Navigácia  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}[ OVLÁDANIE & SKRATKY ]{/bold} ',
   style: {
-    fg: 'black',
-    bg: 'white',
+    border: { fg: 'grey' },
+    fg: 'white',
+    bg: 'black',
   },
+  content: ' {bold}[1-5]{/bold} Výber karty  │  {bold}[← / →]{/bold} Prepínanie kariet  │  {bold}[Tab]{/bold} Prepínanie okien  │  {bold}[↑ / ↓]{/bold} Rolovanie  │  {bold}[r]{/bold} Obnoviť  │  {bold}[q / Esc]{/bold} Koniec',
 });
 
-// Main Content Area (Between TabBar and Footer)
+// ==============================================================================
+// Content Container (Between Header and Footer)
+// ==============================================================================
+
 const contentArea = blessed.box({
   parent: screen,
   top: 4,
   left: 0,
   width: '100%',
-  bottom: 1,
+  bottom: 3,
   style: {
     bg: 'black',
   },
 });
 
 // ==============================================================================
-// TAB 1: MONITOR (btop Grid Dashboard)
+// TAB 1: MONITOR
 // ==============================================================================
 
 const viewMonitor = blessed.box({
@@ -146,9 +131,9 @@ const viewMonitor = blessed.box({
 
 const monitorGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewMonitor });
 
-// Marks Trend Line Graph (Braille curve)
+// 1. Marks Trend (Braille line)
 const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
-  label: ' VÝVOJ PRIEMERU (GPA TREND) ',
+  label: ' {bold}{green-fg}■{/green-fg} [ VÝVOJ PRIEMERU (GPA TREND) ]{/bold} ',
   showLegend: true,
   xPadding: 2,
   xLabelPadding: 2,
@@ -159,14 +144,14 @@ const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
   style: {
     line: 'green',
     text: 'white',
-    baseline: 'black',
+    baseline: 'grey',
     border: { fg: 'grey' },
   },
 });
 
-// Marks Distribution Bar Chart
+// 2. Marks Distribution (Bar chart)
 const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
-  label: ' ROZDELENIE ZNÁMOK (1 - 5) ',
+  label: ' {bold}{cyan-fg}■{/cyan-fg} [ ROZDELENIE ZNÁMOK (1 - 5) ]{/bold} ',
   barWidth: 5,
   barSpacing: 3,
   xOffset: 2,
@@ -179,11 +164,11 @@ const barGraph = monitorGrid.set(5, 0, 4, 6, contrib.bar, {
   },
 });
 
-// Mini Lunch Box
+// 3. Mini Lunch Box
 const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
-  label: ' DNEŠNÝ OBED ',
+  label: ' {bold}{magenta-fg}■{/magenta-fg} [ DNEŠNÝ OBED ]{/bold} ',
   tags: true,
-  border: { type: 'line' },
+  border: { type: 'line', fg: 'grey' },
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -191,18 +176,18 @@ const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
   },
 });
 
-// Today Timetable Table
+// 4. Timetable Table
 const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
   ...STYLES.table,
-  label: ' DNEŠNÝ ROZVRH HODÍN ',
+  label: ' {bold}{yellow-fg}■{/yellow-fg} [ DNEŠNÝ ROZVRH HODÍN ]{/bold} ',
   columnSpacing: 1,
-  columnWidth: [3, 11, 22, 16, 9],
+  columnWidth: [3, 11, 23, 16, 9],
   headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
 });
 
-// Lesson Progress Gauge
+// 5. Current Lesson Progress Gauge
 const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
-  label: ' PRIEBEH AKTUÁLNEJ HODINY ',
+  label: ' {bold}{green-fg}■{/green-fg} [ PRIEBEH AKTUÁLNEJ HODINY ]{/bold} ',
   stroke: 'green',
   fill: 'white',
   border: { type: 'line', fg: 'grey' },
@@ -211,17 +196,17 @@ const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
   },
 });
 
-// Mini Tasks Table
+// 6. Mini Tasks Table
 const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   ...STYLES.table,
-  label: ' AKTUÁLNE ÚLOHY A PÍSOMKY ',
+  label: ' {bold}{blue-fg}■{/blue-fg} [ AKTUÁLNE ZADANIA A PÍSOMKY ]{/bold} ',
   columnSpacing: 1,
   columnWidth: [10, 10, 14, 20],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
 });
 
 // ==============================================================================
-// TAB 2: ZNÁMKY (Full Screen Grades & Analytics)
+// TAB 2: ZNÁMKY
 // ==============================================================================
 
 const viewGrades = blessed.box({
@@ -233,28 +218,44 @@ const viewGrades = blessed.box({
   hidden: true,
 });
 
+const gradesSummaryBox = blessed.box({
+  parent: viewGrades,
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: 3,
+  tags: true,
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}{cyan-fg}■{/cyan-fg} [ CELKOVÝ ŠTUDIJNÝ PREHĽAD ]{/bold} ',
+  style: {
+    border: { fg: 'grey' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
 const gradesGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewGrades });
 
-// Subject Summary Table (Left, 4 cols)
-const subjectsTable = gradesGrid.set(0, 0, 12, 4, contrib.table, {
+// Subjects Table (Left, 4 cols)
+const subjectsTable = gradesGrid.set(3, 0, 9, 4, contrib.table, {
   ...STYLES.table,
-  label: ' PREHĽAD PREDMETOV ',
+  label: ' {bold}{yellow-fg}■{/yellow-fg} [ PREDMETY ]{/bold} ',
   columnSpacing: 1,
-  columnWidth: [8, 7, 7, 6],
+  columnWidth: [8, 8, 8, 6],
   headers: ['PREDMET', 'PRIEMER', 'ÚSPECH', 'POČET'],
 });
 
 // Full Grades Table (Right, 8 cols)
-const fullGradesTable = gradesGrid.set(0, 4, 12, 8, contrib.table, {
+const fullGradesTable = gradesGrid.set(3, 4, 9, 8, contrib.table, {
   ...STYLES.table,
-  label: ' VŠETKY ZAPÍSANÉ ZNÁMKY (ZORADENÉ OD NAJNOVŠÍCH) ',
+  label: ' {bold}{green-fg}■{/green-fg} [ VŠETKY ZAPÍSANÉ ZNÁMKY (NAJNOVŠIE HORE) ]{/bold} ',
   columnSpacing: 1,
-  columnWidth: [10, 8, 14, 5, 24, 20],
+  columnWidth: [10, 8, 14, 5, 26, 20],
   headers: ['DÁTUM', 'PREDMET', 'ZNÁMKA', 'VÁHA', 'ZADANIE / UDALOSŤ', 'POZNÁMKA / UČITEĽ'],
 });
 
 // ==============================================================================
-// TAB 3: ROZVRH (Full Screen Timetable)
+// TAB 3: ROZVRH
 // ==============================================================================
 
 const viewTimetable = blessed.box({
@@ -266,21 +267,37 @@ const viewTimetable = blessed.box({
   hidden: true,
 });
 
-const fullTimetableTable = contrib.table({
+const timetableInfoBox = blessed.box({
   parent: viewTimetable,
   top: 0,
   left: 0,
   width: '100%',
-  height: '100%',
+  height: 3,
+  tags: true,
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}{yellow-fg}■{/yellow-fg} [ DENNÝ HARMONOGRAM ]{/bold} ',
+  style: {
+    border: { fg: 'grey' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const fullTimetableTable = contrib.table({
+  parent: viewTimetable,
+  top: 3,
+  left: 0,
+  width: '100%',
+  height: '100%-3',
   ...STYLES.table,
-  label: ' DNEŠNÝ KOMPLETNÝ ROZVRH HODÍN ',
+  label: ' {bold}{green-fg}■{/green-fg} [ DNEŠNÝ ROZVRH HODÍN SO SKUPINAMI A UČEBNAMI ]{/bold} ',
   columnSpacing: 2,
-  columnWidth: [4, 13, 26, 20, 16, 11, 24],
+  columnWidth: [4, 13, 26, 20, 16, 11, 26],
   headers: ['HOD', 'ČAS', 'PREDMET', 'UČITEĽ', 'UČEBŇA', 'STAV', 'TÉMA HODINY'],
 });
 
 // ==============================================================================
-// TAB 4: OBEDY (Full Screen Cafeteria & Menu)
+// TAB 4: OBEDY
 // ==============================================================================
 
 const viewLunches = blessed.box({
@@ -297,9 +314,10 @@ const lunchesInfoBox = blessed.box({
   top: 0,
   left: 0,
   width: '100%',
-  height: 5,
+  height: 4,
   tags: true,
-  border: { type: 'line' },
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}{magenta-fg}■{/magenta-fg} [ ŠKOLSKÁ JEDÁLEŇ ]{/bold} ',
   style: {
     border: { fg: 'grey' },
     fg: 'white',
@@ -309,19 +327,19 @@ const lunchesInfoBox = blessed.box({
 
 const fullLunchesTable = contrib.table({
   parent: viewLunches,
-  top: 5,
+  top: 4,
   left: 0,
   width: '100%',
-  height: '100%-5',
+  height: '100%-4',
   ...STYLES.table,
-  label: ' JEDÁLNY LÍSTOK NA DNES ',
+  label: ' {bold}{cyan-fg}■{/cyan-fg} [ JEDÁLNY LÍSTOK NA DNES ]{/bold} ',
   columnSpacing: 2,
-  columnWidth: [4, 44, 8, 14, 10],
+  columnWidth: [4, 46, 8, 14, 11],
   headers: ['#', 'NÁZOV JEDLA', 'GRAMÁŽ', 'ALERGÉNY', 'OBJEDNANÉ'],
 });
 
 // ==============================================================================
-// TAB 5: ÚLOHY (Full Screen Homework & Exams)
+// TAB 5: ÚLOHY
 // ==============================================================================
 
 const viewTasks = blessed.box({
@@ -333,41 +351,83 @@ const viewTasks = blessed.box({
   hidden: true,
 });
 
-const fullTasksTable = contrib.table({
+const tasksInfoBox = blessed.box({
   parent: viewTasks,
   top: 0,
   left: 0,
   width: '100%',
-  height: '100%',
+  height: 3,
+  tags: true,
+  border: { type: 'line', fg: 'grey' },
+  label: ' {bold}{blue-fg}■{/blue-fg} [ PREHĽAD POVINNOSTÍ ]{/bold} ',
+  style: {
+    border: { fg: 'grey' },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const fullTasksTable = contrib.table({
+  parent: viewTasks,
+  top: 3,
+  left: 0,
+  width: '100%',
+  height: '100%-3',
   ...STYLES.table,
-  label: ' ZOZNAM DOMÁCICH ÚLOH, PÍSOMIEK A UDALOSTÍ ',
+  label: ' {bold}{green-fg}■{/green-fg} [ ZOZNAM DOMÁCICH ÚLOH, TESTOV A ZADANÍ ]{/bold} ',
   columnSpacing: 2,
-  columnWidth: [12, 14, 20, 48],
+  columnWidth: [12, 14, 22, 50],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'TEXT ZADANIA'],
 });
 
-// Array of View Containers for Tab Switching
+// View Containers & Focusable Widgets Registry
 const VIEW_CONTAINERS = [viewMonitor, viewGrades, viewTimetable, viewLunches, viewTasks];
 
+const TAB_WIDGETS = [
+  [timetableTable, miniTasksTable],
+  [fullGradesTable, subjectsTable],
+  [fullTimetableTable],
+  [fullLunchesTable],
+  [fullTasksTable],
+];
+let activeWidgetIndex = 0;
+
 // ==============================================================================
-// Tab Navigation & Focus Logic
+// Interactive Border Focus Styling
 // ==============================================================================
 
-function renderTabBar() {
-  const parts = TAB_LABELS.map((label, idx) => {
-    if (idx === activeTabIndex) {
-      return `{black-bg}{white-fg}{bold}${label}{/}`;
-    }
-    return `{grey-fg}[${label.trim()}]{/}`;
+function setupFocusEffects(tableWidget, name, accentColor = 'green') {
+  if (!tableWidget || !tableWidget.rows) return;
+  tableWidget.rows.on('focus', () => {
+    tableWidget.style.border.fg = accentColor;
+    tableWidget.setLabel(` {bold}{${accentColor}-fg}▶ [ ${name} ]{/${accentColor}-fg}{/bold} `);
+    screen.render();
   });
-  tabBar.setContent(' ' + parts.join('   '));
+  tableWidget.rows.on('blur', () => {
+    tableWidget.style.border.fg = 'grey';
+    tableWidget.setLabel(` {bold}[ ${name} ]{/bold} `);
+    screen.render();
+  });
 }
+
+setupFocusEffects(timetableTable, 'DNEŠNÝ ROZVRH HODÍN', 'green');
+setupFocusEffects(miniTasksTable, 'AKTUÁLNE ZADANIA A PÍSOMKY', 'green');
+setupFocusEffects(subjectsTable, 'PREDMETY', 'green');
+setupFocusEffects(fullGradesTable, 'VŠETKY ZAPÍSANÉ ZNÁMKY', 'green');
+setupFocusEffects(fullTimetableTable, 'DNEŠNÝ ROZVRH HODÍN', 'green');
+setupFocusEffects(fullLunchesTable, 'JEDÁLNY LÍSTOK NA DNES', 'green');
+setupFocusEffects(fullTasksTable, 'ZOZNAM DOMÁCICH ÚLOH A ZADANÍ', 'green');
+
+// ==============================================================================
+// Tab Navigation
+// ==============================================================================
 
 function switchTab(index) {
   if (index < 0) index = TABS.length - 1;
   if (index >= TABS.length) index = 0;
 
   activeTabIndex = index;
+  activeWidgetIndex = 0;
 
   VIEW_CONTAINERS.forEach((c, idx) => {
     if (idx === activeTabIndex) {
@@ -377,25 +437,11 @@ function switchTab(index) {
     }
   });
 
-  renderTabBar();
+  updateHeader();
 
-  // Focus appropriate interactive widget
-  switch (activeTabIndex) {
-    case 0: // Monitor
-      timetableTable.focus();
-      break;
-    case 1: // Grades
-      fullGradesTable.focus();
-      break;
-    case 2: // Timetable
-      fullTimetableTable.focus();
-      break;
-    case 3: // Lunches
-      fullLunchesTable.focus();
-      break;
-    case 4: // Tasks
-      fullTasksTable.focus();
-      break;
+  const currentTabWidgets = TAB_WIDGETS[activeTabIndex];
+  if (currentTabWidgets && currentTabWidgets.length > 0) {
+    currentTabWidgets[0].focus();
   }
 
   screen.render();
@@ -408,12 +454,10 @@ function switchTab(index) {
 function updateHeader() {
   const now = new Date();
   const timeStr = now.toTimeString().split(' ')[0];
-  const dateStr = now.toISOString().split('T')[0];
 
   const user = dashboardData.user || 'Jakub Gallik';
   const school = dashboardData.school || 'ssnd.edupage.org';
   const nextBell = dashboardData.next_bell || '-';
-  const lastRefresh = dashboardData.time || timeStr;
   const gpa = dashboardData.gpa || '-';
   const standing = dashboardData.standing || '-';
   const totalMarks = dashboardData.total_marks || 0;
@@ -426,21 +470,29 @@ function updateHeader() {
     ? '{red-fg}'
     : '{white-fg}';
 
-  const statusOnline = isFetching
+  const statusBadge = isFetching
     ? '{yellow-fg}[SYNCING...]{/yellow-fg}'
     : '{green-fg}[ONLINE]{/green-fg}';
 
+  headerBox.setLabel(` {bold}{white-fg}[ EDUPAGE BTOP MONITOR - ${school} ]{/white-fg}{/bold} `);
+
+  const tabButtons = TAB_LABELS.map((label, idx) => {
+    if (idx === activeTabIndex) {
+      return `{black-bg}{white-fg}{bold}${label}{/bold}{/black-bg}`;
+    }
+    return `{grey-fg}[${label.trim()}]{/grey-fg}`;
+  }).join('  ');
+
   headerBox.setContent(
-    ` {bold}{white-fg}EDUPAGE BTOP MONITOR{/white-fg}{/bold}  [${school}]                           ${statusOnline}\n` +
-    ` {bold}POUŽÍVATEĽ:{/bold} ${user}  │  {bold}PRIEMER (GPA):{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}${standing}{/}  │  {bold}ZNÁMOK:{/bold} ${totalMarks}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}`
+    ` {bold}ŽIAK:{/bold} ${user}  │  {bold}PRIEMER (GPA):{/bold} {green-fg}{bold}${gpa}{/bold}{/green-fg}  │  {bold}PROSPECH:{/bold} ${standingColor}{bold}${standing}{/bold}{/}  │  {bold}ZNÁMOK:{/bold} ${totalMarks}  │  {bold}ZVONENIE:{/bold} {yellow-fg}${nextBell}{/yellow-fg}  │  {bold}ČAS:{/bold} ${timeStr}  ${statusBadge}\n` +
+    ` {bold}KARTY:{/bold}  ${tabButtons}`
   );
 }
 
 function updateWidgets() {
   updateHeader();
-  renderTabBar();
 
-  // 1. Line Graph (Marks trend)
+  // 1. Line Graph
   const trend = dashboardData.trend || { x: [], y: [] };
   if (trend.x && trend.x.length > 0) {
     lineGraph.setData([
@@ -453,7 +505,7 @@ function updateWidgets() {
     ]);
   }
 
-  // 2. Bar Graph (Distribution 1-5)
+  // 2. Bar Graph
   const dist = dashboardData.distribution || { titles: ['1', '2', '3', '4', '5'], data: [0, 0, 0, 0, 0] };
   barGraph.setData({
     titles: dist.titles,
@@ -462,12 +514,19 @@ function updateWidgets() {
 
   // 3. Timetable Table (Monitor)
   const ttList = dashboardData.timetable || [];
+  let currentLesson = null;
   const ttRows = ttList.map((l) => {
     let st = l.status || 'OK';
-    if (st === 'CURRENT') st = '>> TERAZ';
-    else if (st === 'NEXT') st = '> NA RAD';
-    else if (st === 'DONE') st = 'HOTOVO';
-    else if (st === 'CANCELLED') st = 'ODPADLA';
+    if (st === 'CURRENT') {
+      st = '>> TERAZ';
+      currentLesson = l;
+    } else if (st === 'NEXT') {
+      st = '> NA RAD';
+    } else if (st === 'DONE') {
+      st = 'HOTOVO';
+    } else if (st === 'CANCELLED') {
+      st = 'ODPADLA';
+    }
 
     return [
       l.period || '-',
@@ -484,6 +543,11 @@ function updateWidgets() {
 
   // 4. Lesson Progress Gauge
   const prog = dashboardData.lesson_progress || 0;
+  if (currentLesson) {
+    lessonGauge.setLabel(` {bold}{green-fg}■{/green-fg} [ PREBIEHA: ${currentLesson.subject} (${prog}%) ]{/bold} `);
+  } else {
+    lessonGauge.setLabel(` {bold}{yellow-fg}■{/yellow-fg} [ PRESTÁVKA / VOĽNO (DO ${dashboardData.next_bell || '-'}) ]{/bold} `);
+  }
   lessonGauge.setPercent(prog);
 
   // 5. Mini Lunch Box (Monitor)
@@ -516,7 +580,14 @@ function updateWidgets() {
     data: taskRows.length > 0 ? taskRows : [['-', 'INFO', 'EduPage', 'Žiadne nevyriešené úlohy']],
   });
 
-  // 7. Full Grades View (Subjects + All Grades)
+  // 7. Grades View
+  gradesSummaryBox.setContent(
+    ` {bold}POČET PREDMETOV:{/bold} ${dashboardData.subjects ? dashboardData.subjects.length : 0}  │  ` +
+    ` {bold}ZAPÍSANÝCH ZNÁMOK:{/bold} ${dashboardData.total_marks || 0}  │  ` +
+    ` {bold}VÝSLEDNÝ PRIEMER:{/bold} {green-fg}{bold}${dashboardData.gpa || '-'}{/bold}{/green-fg}  │  ` +
+    ` {bold}CELKOVÝ PROSPECH:{/bold} {cyan-fg}{bold}${dashboardData.standing || '-'}{/bold}{/cyan-fg}`
+  );
+
   const subjRows = (dashboardData.subjects || []).map((s) => [
     s.name || '-',
     s.avg || '-',
@@ -533,7 +604,7 @@ function updateWidgets() {
     g.subject || '-',
     g.grade || '-',
     g.weight || '-',
-    (g.title || '-').slice(0, 24),
+    (g.title || '-').slice(0, 26),
     (g.comment || '-').slice(0, 20),
   ]);
   fullGradesTable.setData({
@@ -541,7 +612,14 @@ function updateWidgets() {
     data: allGradesRows.length > 0 ? allGradesRows : [['-', '-', '-', '-', 'Žiadne zapísané známky', '-']],
   });
 
-  // 8. Full Timetable View
+  // 8. Timetable View
+  const doneCount = ttList.filter(l => l.status === 'DONE').length;
+  const remCount = Math.max(0, ttList.length - doneCount);
+  timetableInfoBox.setContent(
+    ` {bold}DÁTUM:{/bold} ${dashboardData.date || '-'}  │  {bold}POČET HODÍN DNES:{/bold} ${ttList.length}  │  ` +
+    ` {bold}STAV:{/bold} ${doneCount} ukončená, ${remCount} zostávajúce  │  {bold}ZVONENIE:{/bold} {yellow-fg}${dashboardData.next_bell || '-'}{/yellow-fg}`
+  );
+
   const fullTtRows = ttList.map((l) => [
     l.period || '-',
     l.time || '-',
@@ -556,13 +634,13 @@ function updateWidgets() {
     data: fullTtRows.length > 0 ? fullTtRows : [['-', '-', 'Dnes nie sú naplánované žiadne hodiny', '-', '-', '-', '-']],
   });
 
-  // 9. Full Lunches View
+  // 9. Lunches View
   if (lunch) {
     lunchesInfoBox.setContent(
-      ` {bold}{white-fg}ŠKOLSKÁ JEDÁLEŇ - DNEŠNÉ MENU{/white-fg}{/bold}\n` +
-      ` {bold}STAV:{/bold} ${lunch.ordered_meal ? '{green-fg}[OBJEDNANÉ: ' + lunch.ordered_meal + ']{/green-fg}' : '{red-fg}[NEOBJEDNANÉ]{/red-fg}'}   ` +
-      ` {bold}VÝDAJ OBEDOV:{/bold} ${lunch.serving || '-'}   ` +
-      ` {bold}DENNÉ MENU:{/bold} ${(lunch.title || '').replace(/\n/g, ' | ').slice(0, 70)}`
+      ` {bold}STAV OBJEDNÁVKY:{/bold} ${lunch.ordered_meal ? '{green-fg}[OBJEDNANÉ: ' + lunch.ordered_meal + ']{/green-fg}' : '{red-fg}[NEOBJEDNANÉ]{/red-fg}'}   │   ` +
+      ` {bold}ČAS VÝDAJA:{/bold} ${lunch.serving || '-'}   │   ` +
+      ` {bold}JEDÁLEŇ:{/bold} Spojená škola sv. Jána Bosca\n` +
+      ` {bold}MENU NA DNES:{/bold} ${(lunch.title || '').replace(/\n/g, ' | ').slice(0, 80)}`
     );
     const menuRows = (lunch.menus || []).map((m) => [
       m.number ? String(m.number) : '•',
@@ -583,7 +661,13 @@ function updateWidgets() {
     });
   }
 
-  // 10. Full Tasks View
+  // 10. Tasks View
+  const taskCount = dashboardData.tasks ? dashboardData.tasks.length : 0;
+  const nextTask = taskCount > 0 ? `${dashboardData.tasks[0].date} (${dashboardData.tasks[0].text.slice(0, 35)})` : 'Žiadny';
+  tasksInfoBox.setContent(
+    ` {bold}NEVYRIEŠENÉ ZADANIA:{/bold} ${taskCount} úloh a písomiek  │  {bold}NAJBLIŽŠÍ TERMÍN:{/bold} ${nextTask}`
+  );
+
   const fullTasksRows = (dashboardData.tasks || []).map((t) => [
     t.date || '-',
     t.type || 'ÚLOHA',
@@ -608,7 +692,6 @@ function fetchEdupageData(callback) {
   updateHeader();
   screen.render();
 
-  // Find python executable (prefer local .venv)
   const isWin = process.platform === 'win32';
   const venvPy = path.join(__dirname, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
   const pythonCmd = fs.existsSync(venvPy) ? venvPy : (isWin ? 'python' : 'python3');
@@ -636,7 +719,6 @@ function fetchEdupageData(callback) {
         const parsed = JSON.parse(stdoutData.trim());
         if (parsed && parsed.user) {
           dashboardData = parsed;
-          // Persist to local cache for instant future loads
           try {
             const cacheDir = path.join(os.homedir(), '.edupage');
             if (!fs.existsSync(cacheDir)) {
@@ -689,7 +771,7 @@ function getInitialState() {
 }
 
 // ==============================================================================
-// Keyboard Handlers & Tab Switching Shortcuts
+// Keyboard Handlers & Navigation
 // ==============================================================================
 
 // Direct Number Tab Switching [1 - 5]
@@ -699,13 +781,32 @@ screen.key(['3'], () => switchTab(2));
 screen.key(['4'], () => switchTab(3));
 screen.key(['5'], () => switchTab(4));
 
-// Tab / Shift-Tab / Left / Right Navigation
-screen.key(['tab', 'right', 'l'], () => {
+// Left / Right Tab Switching
+screen.key(['left', 'h', '['], () => {
+  switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
+});
+
+screen.key(['right', 'l', ']'], () => {
   switchTab((activeTabIndex + 1) % TABS.length);
 });
 
-screen.key(['S-tab', 'left', 'h'], () => {
-  switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
+// Tab / Shift-Tab widget focus cycling inside active tab
+screen.key(['tab'], () => {
+  const widgets = TAB_WIDGETS[activeTabIndex];
+  if (widgets && widgets.length > 1) {
+    activeWidgetIndex = (activeWidgetIndex + 1) % widgets.length;
+    widgets[activeWidgetIndex].focus();
+    screen.render();
+  }
+});
+
+screen.key(['S-tab'], () => {
+  const widgets = TAB_WIDGETS[activeTabIndex];
+  if (widgets && widgets.length > 1) {
+    activeWidgetIndex = (activeWidgetIndex - 1 + widgets.length) % widgets.length;
+    widgets[activeWidgetIndex].focus();
+    screen.render();
+  }
 });
 
 // Refresh
@@ -727,15 +828,12 @@ screen.on('resize', () => {
 // App Launch
 // ==============================================================================
 
-// 1. Initial UI render
 switchTab(0);
 updateWidgets();
 
-// 2. 1-second live clock ticker
 setInterval(() => {
   updateHeader();
   screen.render();
 }, 1000);
 
-// 3. Fetch live data immediately
 fetchEdupageData();
