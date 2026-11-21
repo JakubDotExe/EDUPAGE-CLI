@@ -1795,6 +1795,7 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "lunches": None,
         "lunches_week": [],
         "teachers_directory": [],
+        "recipients_directory": [],
         "tasks": [],
         "notifications": [],
         "all_grades": [],
@@ -2498,20 +2499,64 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
-    # 7. Teachers Directory (for recipient autocompletion)
+    # 7. Recipients Directory (Classes, Teachers, Students for messaging autocompletion)
     try:
         teachers_list = []
+        recipients_list = []
+        dbi_classes = dbi.get("classes", {}) if isinstance(dbi, dict) else {}
+        dbi_students = dbi.get("students", {}) if isinstance(dbi, dict) else {}
+
+        # 7a. Classes (for messaging entire class)
+        for c_id, c_data in sorted(dbi_classes.items(), key=lambda x: str(x[1].get("name", ""))):
+            c_name = str(c_data.get("name") or "").strip()
+            if not c_name:
+                continue
+            recipients_list.append({
+                "id": f"StudTrieda{c_id}",
+                "name": f"Trieda {c_name}",
+                "type": "CLASS",
+                "type_label": "TRIEDA",
+                "detail": f"Celá trieda ({c_name}) · žiaci",
+            })
+
+        # 7b. Teachers
         raw_teachers = edupage.get_teachers() or []
         for t in raw_teachers:
-            teachers_list.append({
+            t_obj = {
                 "id": t.get_id(),
                 "name": t.name,
+                "type": "TEACHER",
+                "type_label": "UČITEĽ",
+                "detail": f"Učiteľ · Kabinet: {t.classroom_name or '-'}",
                 "classroom": t.classroom_name or "-",
-            })
+            }
+            teachers_list.append(t_obj)
+            recipients_list.append(t_obj)
+
         teachers_list.sort(key=lambda x: x["name"])
+
+        # 7c. Students
+        for s_id, s_data in dbi_students.items():
+            s_class_id = str(s_data.get("classid") or "")
+            s_class_name = dbi_classes.get(s_class_id, {}).get("name") or "-"
+            first = str(s_data.get("firstname") or "").strip()
+            last = str(s_data.get("lastname") or "").strip()
+            full_name = f"{first} {last}".strip()
+            if not full_name:
+                continue
+            recipients_list.append({
+                "id": f"Student{s_id}",
+                "name": full_name,
+                "type": "STUDENT",
+                "type_label": "ŽIAK",
+                "detail": f"Žiak · Trieda {s_class_name}",
+            })
+
         data["teachers_directory"] = teachers_list
+        data["recipients_directory"] = recipients_list
     except Exception:
         data["teachers_directory"] = []
+        data["recipients_directory"] = []
 
     return data
 
@@ -2868,8 +2913,18 @@ def main():
                 sys.exit(1)
         elif args.command == "send-message":
             try:
-                msg_id = edupage.send_message([args.recipient], args.body)
-                print(json.dumps({"success": True, "message": "Správa bola úspešne odoslaná.", "id": msg_id}))
+                recipients_raw = str(args.recipient).replace(",", ";")
+                recipient_ids = [r.strip() for r in recipients_raw.split(";") if r.strip()]
+                if not recipient_ids:
+                    print(json.dumps({"success": False, "error": "Zoznam príjemcov je prázdny."}))
+                    sys.exit(1)
+                msg_id = edupage.send_message(recipient_ids, args.body)
+                print(json.dumps({
+                    "success": True,
+                    "message": f"Správa bola úspešne odoslaná ({len(recipient_ids)} príjemcov).",
+                    "id": msg_id,
+                    "recipients": recipient_ids
+                }))
                 sys.exit(0)
             except Exception as e:
                 print(json.dumps({"success": False, "error": str(e)}))

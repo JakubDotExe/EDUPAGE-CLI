@@ -133,14 +133,15 @@ let confirmModalPendingAction = 'signoff'; // 'signoff' | 'order'
 let confirmModalExecuting = false;
 let confirmModalFeedback = null;
 
-// Tab 4 Compose Message State
-let composeStep = 'recipient'; // 'recipient' | 'body'
+// Tab 4 Compose Message State (Multi-recipient: Classes, Teachers, Students)
+let composeStep = 'recipients'; // 'recipients' | 'body'
 let composeSearchQuery = '';
-let composeTeacherCursor = 0;
-let composeSelectedTeacher = null;
+let composeRecipientCursor = 0;
+let composeSelectedRecipients = []; // Array of recipient objects: { id, name, type, type_label, detail }
 let composeBody = '';
 let composeFeedback = null;
 let composeExecuting = false;
+let lastModalClosedAt = 0; // Debounce guard to prevent race condition when closing modals with Esc
 
 let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
@@ -573,7 +574,7 @@ const composeModal = blessed.box({
   top: 'center',
   left: 'center',
   width: 76,
-  height: 22,
+  height: 25,
   tags: true,
   border: { type: 'line', fg: COLOR_ORANGE },
   style: {
@@ -798,6 +799,19 @@ function padVis(text, width, align = 'left') {
     return ' '.repeat(diff) + s;
   }
   return s + ' '.repeat(diff);
+}
+
+function padVisTagged(taggedText, width, align = 'left') {
+  const plain = String(taggedText || '').replace(/\{[^}]+\}/g, '');
+  const diff = Math.max(0, width - plain.length);
+  if (align === 'center') {
+    const left = Math.floor(diff / 2);
+    return ' '.repeat(left) + taggedText + ' '.repeat(diff - left);
+  }
+  if (align === 'right') {
+    return ' '.repeat(diff) + taggedText;
+  }
+  return taggedText + ' '.repeat(diff);
 }
 
 function getLiveSchoolState(now = new Date()) {
@@ -1481,11 +1495,25 @@ function renderTimetableCard() {
 let gradesCursor = 0; // 0 = PREHĽAD, 1 = POCHVALY/POZNÁMKY, 2..N = Konkrétny predmet
 
 function getGradeColorTag(val) {
+  if (val === null || val === undefined || val === '-' || val === '') return '244-fg';
   const n = parseFloat(String(val).replace(',', '.'));
   if (!isNaN(n)) {
-    if (n <= 2.0) return 'white-fg';
-    if (n <= 3.5) return '250-fg';
-    return '244-fg';
+    if (n <= 1.50) return 'green-fg';
+    if (n <= 2.20) return 'cyan-fg';
+    if (n <= 2.80) return 'yellow-fg';
+    if (n <= 3.50) return 'magenta-fg';
+    return 'red-fg';
+  }
+  const s = String(val).trim();
+  if (s.endsWith('%')) {
+    const pct = parseFloat(s);
+    if (!isNaN(pct)) {
+      if (pct >= 90) return 'green-fg';
+      if (pct >= 75) return 'cyan-fg';
+      if (pct >= 60) return 'yellow-fg';
+      if (pct >= 50) return 'magenta-fg';
+      return 'red-fg';
+    }
   }
   return 'white-fg';
 }
@@ -1521,13 +1549,14 @@ function renderGradesSidebar() {
   if (gradesCursor >= items.length) gradesCursor = Math.max(0, items.length - 1);
 
   const gpa = dashboardData.gpa || '-';
+  const gpaCol = getGradeColorTag(gpa);
   const standing = dashboardData.standing || '-';
   const totalMarks = dashboardData.total_marks || 0;
   const subjCount = (dashboardData.subjects || []).length;
 
   const lines = [];
   lines.push(' {110-fg}SÚHRN{/110-fg}');
-  lines.push(` {24-bg}{153-fg}{bold}${padRawLine(` ● PRIEMER: ${gpa}`, 30)}{/bold}{/153-fg}{/24-bg}`);
+  lines.push(` {24-bg}{bold}{${gpaCol}}${padRawLine(` ● PRIEMER: ${gpa}`, 30)}{/${gpaCol}}{/bold}{/24-bg}`);
   lines.push(` {250-fg}${fitPlain(standing, 30)}{/250-fg}`);
   lines.push(` {244-fg}Známok: ${totalMarks}  ·  Predmetov: ${subjCount}{/244-fg}`);
   lines.push('{67-fg}────────────────────────────────{/67-fg}');
@@ -1572,6 +1601,7 @@ function renderGradesSidebar() {
     const cursorHere = isFocused && gradesCursor === globalIdx;
     const active = gradesCursor === globalIdx;
     const s = it.subject;
+    const avgCol = getGradeColorTag(s.avg);
     const branch = sIdx === subjItems.length - 1 ? '└─' : '├─';
     const rawLine = `${active ? '▸' : ' '} ${branch} ${it.label}`;
 
@@ -1580,7 +1610,7 @@ function renderGradesSidebar() {
     } else if (active) {
       lines.push(`{153-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/153-fg}`);
     } else {
-      lines.push(`{67-fg}   ${branch}{/67-fg} {bold}{white-fg}${(s.short || s.name || '-').padEnd(4, ' ')}{/white-fg}{/bold} {244-fg}${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')}{/244-fg} {117-fg}[${(s.avg || '-').padStart(4, ' ')}]{/117-fg}`);
+      lines.push(`{67-fg}   ${branch}{/67-fg} {bold}{white-fg}${(s.short || s.name || '-').padEnd(4, ' ')}{/white-fg}{/bold} {244-fg}${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')}{/244-fg} {bold}{${avgCol}}[${(s.avg || '-').padStart(4, ' ')}]{/${avgCol}}{/bold}`);
     }
   }
 
@@ -1639,11 +1669,17 @@ function renderGradesOverview() {
     for (let i = 0; i < plotCount; i++) {
       const val = ty[i];
       const closestLvl = yLevels.reduce((prev, curr) => (Math.abs(curr - val) < Math.abs(prev - val) ? curr : prev));
-      const cellStr = closestLvl === lvl ? `●${val.toFixed(2)}` : (val <= lvl ? '  │  ' : '  ·  ');
-      rowChars += padVis(cellStr, colStep, 'center');
+      let cellStr = '  ·  ';
+      if (closestLvl === lvl) {
+        const ptCol = getGradeColorTag(val);
+        cellStr = `{${ptCol}}{bold}●${val.toFixed(2)}{/bold}{/${ptCol}}`;
+      } else if (val <= lvl) {
+        cellStr = '  │  ';
+      }
+      rowChars += padVisTagged(cellStr, colStep, 'center');
     }
     const labelStr = ` ${lvl.toFixed(1)} ┤`;
-    chartRows.push(`{244-fg}${labelStr}{/244-fg}{117-fg}${padRawLine(rowChars, leftW - 6)}{/117-fg}`);
+    chartRows.push(`{244-fg}${labelStr}{/244-fg}${padVisTagged(rowChars, leftW - 6)}`);
   });
 
   let xAxisBody = '';
@@ -1655,6 +1691,7 @@ function renderGradesOverview() {
   // Build 6 lines for Right Grade Distribution
   const distRows = [];
   const barMaxW = Math.max(8, rightW - 31);
+  const distColors = ['green-fg', 'cyan-fg', 'yellow-fg', 'magenta-fg', 'red-fg'];
   for (let i = 0; i < 5; i++) {
     const cnt = distData[i] || 0;
     const pct = totalClassified > 0 ? ((cnt / totalClassified) * 100).toFixed(1) : '0.0';
@@ -1663,13 +1700,16 @@ function renderGradesOverview() {
     const linePlain = ` ${i + 1} ${distLabels[i].padEnd(12, ' ')} `;
     const rightStats = ` ${String(cnt).padStart(2, ' ')}x (${pct.padStart(5, ' ')}%)`;
     const padRem = Math.max(0, rightW - (linePlain.length + bar.length + rightStats.length));
+    const dColor = distColors[i];
     distRows.push(
-      `{250-fg}${linePlain}{/250-fg}{153-fg}${bar}{/153-fg}{244-fg}${rightStats}{/244-fg}${' '.repeat(padRem)}`
+      `{250-fg}${linePlain}{/250-fg}{${dColor}}{bold}${bar}{/bold}{/${dColor}}{244-fg}${rightStats}{/244-fg}${' '.repeat(padRem)}`
     );
   }
   const passCount = distData[0] + distData[1] + distData[2] + distData[3];
   const passRate = totalClassified > 0 ? ((passCount / totalClassified) * 100).toFixed(1) : '0.0';
-  const summaryTxt = ` Spolu: ${totalClassified}   │   Priemer: ${dashboardData.gpa || '-'}   │   Úspešnosť: ${passRate}%`;
+  const gpaOverall = dashboardData.gpa || '-';
+  const gpaOverallCol = getGradeColorTag(gpaOverall);
+  const summaryTxt = ` Spolu: ${totalClassified}   │   Priemer: {bold}{${gpaOverallCol}}${gpaOverall}{/${gpaOverallCol}}{/bold}   │   Úspešnosť: ${passRate}%`;
   distRows.push(`{110-fg}${padRawLine(summaryTxt, rightW)}{/110-fg}`);
 
   const out = [];
@@ -1714,19 +1754,33 @@ function renderGradesOverview() {
   out.push(`{67-fg}${tLine('├', '┼', '┤')}{/67-fg}`);
 
   subjs.forEach((s) => {
-    const marksStr = (s.marks_preview && s.marks_preview.length > 0)
-      ? s.marks_preview.join(', ')
-      : '-';
+    const avgCol = getGradeColorTag(s.avg);
+    const finCol = getGradeColorTag(s.final_grade);
+    const marksPreviewList = s.marks_preview || [];
+    let marksTagged = '{244-fg}-{/244-fg}';
+    if (marksPreviewList.length > 0) {
+      const parts = [];
+      let curLen = 0;
+      for (const m of marksPreviewList) {
+        const mStr = String(m);
+        if (curLen + mStr.length + 2 > wMarks) break;
+        const col = getGradeColorTag(m);
+        parts.push(`{${col}}{bold}${mStr}{/bold}{/${col}}`);
+        curLen += mStr.length + 2;
+      }
+      marksTagged = parts.join('{240-fg}, {/240-fg}');
+    }
+
     out.push(
       '{67-fg}│{/67-fg}' +
       `{bold}{white-fg}${padVis(s.short || s.name, wShort, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
       `{250-fg}${padVis(s.full_name || s.name, wSubj)}{/250-fg}{67-fg}│{/67-fg}` +
-      `{153-fg}${padVis(marksStr, wMarks)}{/153-fg}{67-fg}│{/67-fg}` +
+      `${padVisTagged(marksTagged, wMarks)}{67-fg}│{/67-fg}` +
       `{244-fg}${padVis(String(s.count || 0), wCnt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
       `{244-fg}${padVis(s.percent || '-', wPct, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
-      `{bold}{117-fg}${padVis(s.avg || '-', wAvg, 'center')}{/117-fg}{/bold}{67-fg}│{/67-fg}` +
-      `{bold}{white-fg}${padVis(s.final_grade || '-', wFin, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
-      `{250-fg}${padVis(s.verbal || '-', wVerb, 'center')}{/250-fg}{67-fg}│{/67-fg}`
+      `{bold}{${avgCol}}${padVis(s.avg || '-', wAvg, 'center')}{/${avgCol}}{/bold}{67-fg}│{/67-fg}` +
+      `{bold}{${finCol}}${padVis(s.final_grade || '-', wFin, 'center')}{/${finCol}}{/bold}{67-fg}│{/67-fg}` +
+      `{bold}{${finCol}}${padVis(s.verbal || '-', wVerb, 'center')}{/${finCol}}{/bold}{67-fg}│{/67-fg}`
     );
   });
 
@@ -1858,6 +1912,8 @@ function renderSubjectDetailView(subj) {
   const boxWidth = gradesMainBox.width && gradesMainBox.width > 40 ? gradesMainBox.width : Math.max(80, screen.width - SIDEBAR_WIDTH);
   const innerW = Math.max(82, boxWidth - 4);
 
+  const avgCol = getGradeColorTag(subj.avg);
+  const finCol = getGradeColorTag(subj.final_grade);
   const sDist = subj.distribution || [0, 0, 0, 0, 0];
   const gRows = subj.grades || [];
 
@@ -1869,11 +1925,13 @@ function renderSubjectDetailView(subj) {
   out.push(`{67-fg}│{/67-fg}{24-bg}{153-fg}{bold}${padRawLine(titleLine, innerW)}{/bold}{/153-fg}{/24-bg}{67-fg}│{/67-fg}`);
   out.push(`{67-fg}├${'─'.repeat(innerW)}┤{/67-fg}`);
 
-  const statsLine = ` PRIEMER: ${subj.avg || '-'}   │   PERCENTÁ: ${subj.percent || '-'}   │   VYSVEDČENIE: ${subj.final_grade || '-'} (${subj.verbal || '-'})   │   POČET ZNÁMOK: ${subj.count || 0}`;
-  out.push(`{67-fg}│{/67-fg}{153-fg}${padRawLine(statsLine, innerW)}{/153-fg}{67-fg}│{/67-fg}`);
+  const statsLine = ` PRIEMER: {bold}{${avgCol}}${subj.avg || '-'}{/${avgCol}}{/bold}   │   PERCENTÁ: {bold}{${getGradeColorTag(subj.percent)}}${subj.percent || '-'}{/${getGradeColorTag(subj.percent)}}{/bold}   │   VYSVEDČENIE: {bold}{${finCol}}${subj.final_grade || '-'} (${subj.verbal || '-'}){/${finCol}}{/bold}   │   POČET ZNÁMOK: ${subj.count || 0}`;
+  out.push(`{67-fg}│{/67-fg}${padVisTagged(statsLine, innerW)}{67-fg}│{/67-fg}`);
 
-  const distSummary = ` DISTRIBÚCIA:  [1]: ${sDist[0]}x   ·   [2]: ${sDist[1]}x   ·   [3]: ${sDist[2]}x   ·   [4]: ${sDist[3]}x   ·   [5]: ${sDist[4]}x`;
-  out.push(`{67-fg}│{/67-fg}{244-fg}${padRawLine(distSummary, innerW)}{/244-fg}{67-fg}│{/67-fg}`);
+  const distColors = ['green-fg', 'cyan-fg', 'yellow-fg', 'magenta-fg', 'red-fg'];
+  const distParts = [1, 2, 3, 4, 5].map((g, i) => `{${distColors[i]}}[${g}]: ${sDist[i]}x{/${distColors[i]}}`).join('   ·   ');
+  const distSummary = ` DISTRIBÚCIA:  ${distParts}`;
+  out.push(`{67-fg}│{/67-fg}${padVisTagged(distSummary, innerW)}{67-fg}│{/67-fg}`);
   out.push(`{67-fg}└${'─'.repeat(innerW)}┘{/67-fg}`);
   out.push('');
 
@@ -1923,13 +1981,14 @@ function renderSubjectDetailView(subj) {
     );
   } else {
     gRows.forEach((g, idx) => {
+      const gCol = getGradeColorTag(g.numeric_val !== '-' ? g.numeric_val : g.grade);
       out.push(
         '{67-fg}│{/67-fg}' +
         `{244-fg}${padVis(`${idx + 1}.`, wIdx, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
         `{250-fg}${padVis(g.date || '-', wDate, 'center')}{/250-fg}{67-fg}│{/67-fg}` +
-        `{bold}{white-fg}${padVis(g.grade || '-', wGrd, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
-        `{bold}{117-fg}${padVis(g.numeric_val || '-', wNum, 'center')}{/117-fg}{/bold}{67-fg}│{/67-fg}` +
-        `{250-fg}${padVis(g.points_str || '-', wPts, 'center')}{/250-fg}{67-fg}│{/67-fg}` +
+        `{bold}{${gCol}}${padVis(g.grade || '-', wGrd, 'center')}{/${gCol}}{/bold}{67-fg}│{/67-fg}` +
+        `{bold}{${gCol}}${padVis(g.numeric_val || '-', wNum, 'center')}{/${gCol}}{/bold}{67-fg}│{/67-fg}` +
+        `{bold}{${getGradeColorTag(g.points_str)}}${padVis(g.points_str || '-', wPts, 'center')}{/${getGradeColorTag(g.points_str)}}{/bold}{67-fg}│{/67-fg}` +
         `{244-fg}${padVis(g.weight || '1', wWgt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
         `{244-fg}${padVis(g.class_avg || '-', wCavg, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
         `{white-fg}${padVis(g.title || '-', wTitle)}{/white-fg}{67-fg}│{/67-fg}` +
@@ -2819,6 +2878,7 @@ function openConfirmLunchModal(day, actionType) {
 }
 
 function closeConfirmLunchModal() {
+  lastModalClosedAt = Date.now();
   activeModal = null;
   confirmModalPendingDay = null;
   confirmModalFeedback = null;
@@ -2936,21 +2996,33 @@ function executeSubmitRating() {
   });
 }
 
-function getFilteredTeachers() {
-  const all = dashboardData.teachers_directory || [];
+function getFilteredRecipients() {
+  const all = (dashboardData.recipients_directory && dashboardData.recipients_directory.length > 0)
+    ? dashboardData.recipients_directory
+    : (dashboardData.teachers_directory || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        type: 'TEACHER',
+        type_label: 'UČITEĽ',
+        detail: `Učiteľ · Kabinet: ${t.classroom || '-'}`,
+      }));
+
   const q = composeSearchQuery.trim().toLowerCase();
-  if (!q) return all.slice(0, 8);
-  return all.filter((t) => {
-    return (t.name || '').toLowerCase().includes(q) || (t.classroom || '').toLowerCase().includes(q);
-  }).slice(0, 8);
+  if (!q) return all.slice(0, 9);
+  return all.filter((r) => {
+    const nameMatch = (r.name || '').toLowerCase().includes(q);
+    const detailMatch = (r.detail || '').toLowerCase().includes(q);
+    const typeMatch = (r.type_label || '').toLowerCase().includes(q);
+    return nameMatch || detailMatch || typeMatch;
+  }).slice(0, 9);
 }
 
 function openComposeMessageModal() {
   activeModal = 'compose_message';
-  composeStep = 'recipient';
+  composeStep = 'recipients';
   composeSearchQuery = '';
-  composeTeacherCursor = 0;
-  composeSelectedTeacher = null;
+  composeRecipientCursor = 0;
+  composeSelectedRecipients = [];
   composeBody = '';
   composeFeedback = null;
   composeExecuting = false;
@@ -2962,6 +3034,7 @@ function openComposeMessageModal() {
 }
 
 function closeComposeModal() {
+  lastModalClosedAt = Date.now();
   activeModal = null;
   composeModal.hide();
   updateFooter();
@@ -2974,25 +3047,46 @@ function closeComposeModal() {
 function renderComposeModal() {
   const lines = [];
   lines.push('');
-  lines.push(' {bold}{153-fg}✉ POSLAŤ SPRÁVU UČITEĽOVI{/153-fg}{/bold}');
+  lines.push(' {bold}{153-fg}✉ POSLAŤ SPRÁVU (UČITELIA / TRIEDY / ŽIACI){/153-fg}{/bold}');
   lines.push(' {67-fg}────────────────────────────────────────────────────────────────────────{/67-fg}');
   lines.push('');
 
-  if (composeStep === 'recipient') {
-    lines.push(` {208-fg}{bold}1. Komu (hľadať učiteľa):{/bold}{/208-fg} [ {white-fg}${composeSearchQuery}{/white-fg}{208-fg}█{/208-fg} ]`);
-    lines.push('');
-    lines.push(' {110-fg}NAŠEPKÁVAČ UČITEĽOV (použite šípky ↑ / ↓ a Enter):{/110-fg}');
+  // 1. Tags of currently selected recipients
+  const tagList = composeSelectedRecipients.map((r) => {
+    let typeBg = '117-bg';
+    if (r.type === 'CLASS') typeBg = '31-bg';
+    else if (r.type === 'TEACHER') typeBg = '24-bg';
+    else if (r.type === 'STUDENT') typeBg = '23-bg';
+    return `{${typeBg}}{white-fg} [✓] ${r.name} {/white-fg}{/${typeBg}}`;
+  }).join(' ');
 
-    const teachers = getFilteredTeachers();
-    if (teachers.length === 0) {
-      lines.push('   {244-fg}Žiaden učiteľ nevyhovuje hľadaniu.{/244-fg}');
+  if (composeSelectedRecipients.length > 0) {
+    lines.push(` {bold}{250-fg}Príjemcovia ({white-fg}${composeSelectedRecipients.length}{/white-fg}):{/250-fg}{/bold} ${tagList}`);
+  } else {
+    lines.push(' {244-fg}Príjemcovia: (zatiaľ nikto nevybraný — vyberte zo zoznamu nižšie){/244-fg}');
+  }
+  lines.push('');
+
+  if (composeStep === 'recipients') {
+    lines.push(` {208-fg}{bold}Hľadať príjemcu (meno / trieda):{/bold}{/208-fg} [ {white-fg}${composeSearchQuery}{/white-fg}{208-fg}█{/208-fg} ]`);
+    lines.push('');
+    lines.push(' {110-fg}NAŠEPKÁVAČ (↑ / ↓ výber  │  Enter pridať/odobrať  │  Tab text správy):{/110-fg}');
+
+    const recs = getFilteredRecipients();
+    if (recs.length === 0) {
+      lines.push('   {244-fg}Žiaden príjemca nevyhovuje hľadaniu.{/244-fg}');
     } else {
-      if (composeTeacherCursor >= teachers.length) composeTeacherCursor = teachers.length - 1;
-      teachers.forEach((t, idx) => {
-        const isHere = idx === composeTeacherCursor;
-        const nameCol = fitPlain(t.name, 36).padEnd(36, ' ');
-        const roomCol = fitPlain(`Kabinet: ${t.classroom || '-'}`, 24);
-        const rawRow = ` ${isHere ? '▸' : ' '} ${nameCol} │ ${roomCol}`;
+      if (composeRecipientCursor >= recs.length) composeRecipientCursor = recs.length - 1;
+      if (composeRecipientCursor < 0) composeRecipientCursor = 0;
+
+      recs.forEach((r, idx) => {
+        const isHere = idx === composeRecipientCursor;
+        const isSel = composeSelectedRecipients.some((x) => x.id === r.id);
+        const checkMark = isSel ? '{green-fg}[✓]{/green-fg}' : '{244-fg}[ ]{/244-fg}';
+        const typeTag = `[${r.type_label || 'OSOBA'}]`.padEnd(9, ' ');
+        const nameCol = fitPlain(r.name, 26).padEnd(26, ' ');
+        const detCol = fitPlain(r.detail || '-', 28);
+        const rawRow = ` ${isHere ? '▸' : ' '} ${checkMark} ${typeTag} ${nameCol} │ ${detCol}`;
         if (isHere) {
           lines.push(`{208-bg}{black-fg}{bold}${padRawLine(rawRow, 70)}{/bold}{/black-fg}{/208-bg}`);
         } else {
@@ -3003,18 +3097,19 @@ function renderComposeModal() {
 
     lines.push('');
     lines.push(' {67-fg}────────────────────────────────────────────────────────────────────────{/67-fg}');
-    lines.push(' {153-fg}[Enter]{/153-fg} Vybrať označeného učiteľa   │   {153-fg}[Esc]{/153-fg} Zrušiť');
+    if (composeFeedback) {
+      lines.push(` ${composeFeedback}`);
+    } else {
+      lines.push(' {153-fg}[Enter]{/153-fg} Pridať/Odobrať   │   {153-fg}[Tab]{/153-fg} Text správy   │   {153-fg}[Esc]{/153-fg} Zrušiť');
+    }
   } else {
-    const tName = composeSelectedTeacher ? composeSelectedTeacher.name : 'Neznámy';
-    const tRoom = composeSelectedTeacher ? composeSelectedTeacher.classroom : '-';
-    lines.push(` {244-fg}Príjemca:{/244-fg} {green-fg}{bold}✓ ${tName}{/bold}{/green-fg} {244-fg}(Kabinet: ${tRoom}){/244-fg}   {110-fg}[Tab: zmeniť príjemcu]{/110-fg}`);
-    lines.push('');
-    lines.push(' {208-fg}{bold}2. Text správy:{/bold}{/208-fg}');
+    // Step: Body
+    lines.push(' {208-fg}{bold}Text správy:{/bold}{/208-fg}   {110-fg}[Tab: vrátiť sa k úprave príjemcov]{/110-fg}');
     lines.push(' {67-fg}┌──────────────────────────────────────────────────────────────────────┐{/67-fg}');
 
     const bodyDisplay = composeBody || '';
     const bodyLines = wrapTextToLines(bodyDisplay + '█', 68);
-    for (let i = 0; i < Math.max(4, bodyLines.length); i++) {
+    for (let i = 0; i < Math.max(5, bodyLines.length); i++) {
       const lineText = fitPlain(bodyLines[i] || '', 68).padEnd(68, ' ');
       lines.push(` {67-fg}│{/67-fg} {white-fg}${lineText}{/white-fg} {67-fg}│{/67-fg}`);
     }
@@ -3022,11 +3117,11 @@ function renderComposeModal() {
     lines.push('');
 
     if (composeExecuting) {
-      lines.push(' {yellow-fg}{bold}⏳ Odosielam správu učiteľovi...{/bold}{/yellow-fg}');
+      lines.push(` {yellow-fg}{bold}⏳ Odosielam správu pre ${composeSelectedRecipients.length} príjemcov...{/bold}{/yellow-fg}`);
     } else if (composeFeedback) {
       lines.push(` ${composeFeedback}`);
     } else {
-      lines.push(' {white-fg}{117-bg}{bold} [ ENTER / Ctrl+S ] ODOSLAŤ SPRÁVU {/bold}{/117-bg}{/white-fg}   {244-fg}[Esc: Zrušiť │ Tab: Zmeniť učiteľa]{/244-fg}');
+      lines.push(' {white-fg}{117-bg}{bold} [ ENTER / Ctrl+S ] ODOSLAŤ SPRÁVU {/bold}{/117-bg}{/white-fg}   {244-fg}[Tab: Príjemcovia │ Esc: Zrušiť]{/244-fg}');
     }
   }
 
@@ -3034,7 +3129,12 @@ function renderComposeModal() {
 }
 
 function executeSendMessage() {
-  if (!composeSelectedTeacher || composeExecuting) return;
+  if (!composeSelectedRecipients || composeSelectedRecipients.length === 0 || composeExecuting) {
+    composeFeedback = '{red-fg}Vyberte aspoň jedného príjemcu pred odoslaním.{/red-fg}';
+    renderComposeModal();
+    screen.render();
+    return;
+  }
   if (!composeBody.trim()) {
     composeFeedback = '{red-fg}Zadajte text správy pred odoslaním.{/red-fg}';
     renderComposeModal();
@@ -3047,9 +3147,10 @@ function executeSendMessage() {
   renderComposeModal();
   screen.render();
 
+  const recipientIds = composeSelectedRecipients.map((r) => r.id).join(';');
   const args = [
     'send-message',
-    '--recipient', composeSelectedTeacher.id,
+    '--recipient', recipientIds,
     '--body', composeBody.trim(),
   ];
 
@@ -3093,61 +3194,80 @@ function handleModalKeypress(ch, key) {
       return;
     }
 
-    if (composeStep === 'recipient') {
-      const teachers = getFilteredTeachers();
+    if (composeStep === 'recipients') {
+      const recs = getFilteredRecipients();
       if (key.name === 'up' || (key.name === 'k' && key.ctrl)) {
-        if (composeTeacherCursor > 0) composeTeacherCursor -= 1;
+        if (composeRecipientCursor > 0) composeRecipientCursor -= 1;
         renderComposeModal();
         screen.render();
         return;
       }
       if (key.name === 'down' || (key.name === 'j' && key.ctrl)) {
-        if (composeTeacherCursor < teachers.length - 1) composeTeacherCursor += 1;
+        if (composeRecipientCursor < recs.length - 1) composeRecipientCursor += 1;
         renderComposeModal();
         screen.render();
         return;
       }
       if (key.name === 'enter' || key.name === 'return') {
-        if (teachers[composeTeacherCursor]) {
-          composeSelectedTeacher = teachers[composeTeacherCursor];
-          composeStep = 'body';
+        if (recs[composeRecipientCursor]) {
+          const target = recs[composeRecipientCursor];
+          const existIdx = composeSelectedRecipients.findIndex((x) => x.id === target.id);
+          if (existIdx >= 0) {
+            composeSelectedRecipients.splice(existIdx, 1);
+          } else {
+            composeSelectedRecipients.push(target);
+          }
+          composeSearchQuery = '';
+          composeRecipientCursor = 0;
+          composeFeedback = null;
           renderComposeModal();
           screen.render();
         }
         return;
       }
+      if (key.name === 'tab') {
+        if (composeSelectedRecipients.length > 0) {
+          composeStep = 'body';
+          composeFeedback = null;
+        } else {
+          composeFeedback = '{yellow-fg}Vyberte aspoň jedného príjemcu.{/yellow-fg}';
+        }
+        renderComposeModal();
+        screen.render();
+        return;
+      }
       if (key.name === 'backspace') {
-        composeSearchQuery = composeSearchQuery.slice(0, -1);
-        composeTeacherCursor = 0;
+        if (composeSearchQuery.length > 0) {
+          composeSearchQuery = composeSearchQuery.slice(0, -1);
+          composeRecipientCursor = 0;
+        } else if (composeSelectedRecipients.length > 0) {
+          composeSelectedRecipients.pop();
+        }
         renderComposeModal();
         screen.render();
         return;
       }
       if (key.name === 'delete' || (key.ctrl && key.name === 'u')) {
-        composeSearchQuery = '';
-        composeTeacherCursor = 0;
+        if (composeSearchQuery.length > 0) {
+          composeSearchQuery = '';
+        } else {
+          composeSelectedRecipients = [];
+        }
+        composeRecipientCursor = 0;
         renderComposeModal();
         screen.render();
         return;
       }
-      if (['tab'].includes(key.name)) {
-        if (composeSelectedTeacher) {
-          composeStep = 'body';
-          renderComposeModal();
-          screen.render();
-        }
-        return;
-      }
       if (ch && !key.ctrl && !key.meta && ch.length === 1 && ch.charCodeAt(0) >= 32) {
         composeSearchQuery += ch;
-        composeTeacherCursor = 0;
+        composeRecipientCursor = 0;
         renderComposeModal();
         screen.render();
         return;
       }
     } else if (composeStep === 'body') {
       if (key.name === 'tab') {
-        composeStep = 'recipient';
+        composeStep = 'recipients';
         renderComposeModal();
         screen.render();
         return;
@@ -3186,11 +3306,29 @@ function isMessagesSearchActive() {
   return activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'search';
 }
 
-// Handle typing inside the Tab 4 Search Box
+// Handle typing inside the Tab 4 Search Box and Tab 5 Star Ratings
 screen.on('keypress', (ch, key) => {
   if (activeModal) {
     handleModalKeypress(ch, key);
     return;
+  }
+
+  // If on Tab 5 card (Lunches), typing numbers 1-5 immediately sets stars!
+  if (activeTabIndex === 4 && navFocus === 'card') {
+    const rawDigit = ch || (key && key.name);
+    const digit = parseInt(rawDigit, 10);
+    if (digit >= 1 && digit <= 5) {
+      lunchSubFocus = 'rating';
+      if (lunchRatingField === 'quantity') {
+        lunchRatingQuantity = digit;
+      } else {
+        lunchRatingQuality = digit;
+      }
+      updateFooter();
+      renderLunchesCard();
+      screen.render();
+      return;
+    }
   }
 
   if (!isMessagesSearchActive() || !key) return;
@@ -3232,21 +3370,25 @@ screen.key(['1', '2', '3', '4', '5'], (ch, key) => {
   if (activeModal) return;
   if (isMessagesSearchActive()) return;
 
-  if (activeTabIndex === 4 && navFocus === 'card' && lunchSubFocus === 'rating') {
-    const val = parseInt(key.name, 10);
-    if (val >= 1 && val <= 5) {
-      if (lunchRatingField === 'quality') {
-        lunchRatingQuality = val;
+  const rawDigit = ch || (key && key.name);
+  const digit = parseInt(rawDigit, 10);
+
+  if (activeTabIndex === 4 && navFocus === 'card') {
+    if (digit >= 1 && digit <= 5) {
+      lunchSubFocus = 'rating';
+      if (lunchRatingField === 'quantity') {
+        lunchRatingQuantity = digit;
       } else {
-        lunchRatingQuantity = val;
+        lunchRatingQuality = digit;
       }
+      updateFooter();
       renderLunchesCard();
       screen.render();
       return;
     }
   }
 
-  const tabIdx = parseInt(key.name, 10) - 1;
+  const tabIdx = digit - 1;
   if (tabIdx >= 0 && tabIdx < TABS.length) {
     switchTab(tabIdx);
   }
@@ -3702,6 +3844,9 @@ screen.key(['r'], () => {
 
 // Quit (Esc exits modal, or search input first, then exits)
 screen.key(['escape'], () => {
+  if (Date.now() - lastModalClosedAt < 350) {
+    return;
+  }
   if (activeModal) {
     if (activeModal === 'confirm_lunch') closeConfirmLunchModal();
     else if (activeModal === 'compose_message') closeComposeModal();
