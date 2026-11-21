@@ -91,15 +91,20 @@ if (screen.tput) {
 }
 
 // ==============================================================================
-// Monochrome + Active Orange Palette (256-Color Grayscale + Orange 208)
+// Light Blue, Slate Blue & Cool Grayscale Palette (256-Color)
 // ==============================================================================
 
-const COLOR_ORANGE = 208;    // #ff8700 - ONLY for currently active/controlled element
-const COLOR_WHITE = 255;     // #eeeeee - Primary bright text
-const COLOR_LIGHT_GRAY = 250;// #bcbcbc - Secondary text / table headers
-const COLOR_MID_GRAY = 244;  // #808080 - Muted labels / borders / inactive tabs
-const COLOR_DARK_GRAY = 240; // #585858 - Subtle grid lines & inactive frames
-const COLOR_CHARCOAL = 236;  // #303030 - Dark surface highlight
+const COLOR_ORANGE = 208;       // #ff8700 - ONLY for currently active/controlled element
+const COLOR_ICE_BLUE = 117;     // #87d7ff - Bright light sky/ice blue (active bells, now tags, highlight stats)
+const COLOR_LIGHT_BLUE = 153;   // #afd7ff - Soft pale light blue (svetlunkomodrá - subject names, primary highlights)
+const COLOR_SLATE_BLUE = 110;   // #87afd7 - Medium slate blue (category titles, table headers)
+const COLOR_STEEL_BLUE = 67;    // #5f87af - Subtle steel blue (borders, frames, grid lines)
+const COLOR_DARK_NAVY = 24;     // #005f87 - Dark navy slate background tint for active banners
+const COLOR_WHITE = 255;        // #eeeeee - Primary bright white text
+const COLOR_LIGHT_GRAY = 250;   // #bcbcbc - Secondary text / table details
+const COLOR_MID_GRAY = 244;     // #808080 - Muted labels / timestamps
+const COLOR_DARK_GRAY = 240;    // #585858 - Subtle muted lines / inactive
+const COLOR_CHARCOAL = 236;     // #303030 - Dark surface highlight
 
 // Navigation State
 const TABS = ['monitor', 'timetable', 'grades', 'messages', 'lunches'];
@@ -137,7 +142,7 @@ const headerBox = blessed.box({
 });
 
 // ==============================================================================
-// Bottom Footer Box (Minimal Monochrome Bar)
+// Bottom Footer Box (Minimal Light-Blue / Gray Bar)
 // ==============================================================================
 
 const footerBox = blessed.box({
@@ -147,14 +152,14 @@ const footerBox = blessed.box({
   width: '100%',
   height: 3,
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ SKRATKY ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
-  content: ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Šípky]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}',
+  content: ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Šípky]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}',
 });
 
 // ==============================================================================
@@ -187,7 +192,7 @@ const viewMonitor = blessed.box({
 
 const monitorGrid = new contrib.grid({ rows: 12, cols: 12, screen: viewMonitor });
 
-// 1. Marks Trend (Monochrome white line on dark gray border)
+// 1. Marks Trend (Cyan/Light Blue line on steel blue border)
 const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
   label: ' [ VÝVOJ PRIEMERU ] ',
   showLegend: false,
@@ -196,45 +201,45 @@ const lineGraph = monitorGrid.set(0, 0, 5, 6, contrib.line, {
   wholeNumbersOnly: false,
   minY: 1.0,
   maxY: 3.5,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   style: {
-    line: 'white',
+    line: 'cyan',
     text: 'white',
     baseline: 'black',
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
   },
 });
 
-// 2. Marks Distribution (Monochrome)
+// 2. Marks Distribution (Light blue bars on steel blue border)
 const distributionBox = monitorGrid.set(5, 0, 4, 6, blessed.box, {
   label: ' [ ROZDELENIE ZNÁMOK (1 - 5) ] ',
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// 3. Mini Lunch Box (Monochrome)
+// 3. Mini Lunch Box (Steel blue border)
 const miniLunchBox = monitorGrid.set(9, 0, 3, 6, blessed.box, {
   label: ' [ DNEŠNÝ OBED ] ',
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
 });
 
-// 4. Timetable Table (Monochrome; orange selection when focused)
+// 4. Timetable Table (Light blue headers; orange selection when focused)
 const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
   keys: true,
   interactive: true,
   label: ' [ DNEŠNÝ ROZVRH ] ',
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   columnSpacing: 2,
   columnWidth: [4, 13, 26, 20, 10],
   headers: ['#', 'ČAS', 'PREDMET', 'UČITEĽ', 'STAV'],
@@ -242,28 +247,28 @@ const timetableTable = monitorGrid.set(0, 6, 6, 6, contrib.table, {
   selectedFg: 'black',
   selectedBg: COLOR_ORANGE,
   style: {
-    border: { fg: COLOR_DARK_GRAY },
-    header: { fg: 'white', bold: true },
+    border: { fg: COLOR_STEEL_BLUE },
+    header: { fg: 153, bold: true },
   },
 });
 
-// 5. Current Lesson Progress Gauge (Monochrome)
+// 5. Current Lesson Progress Gauge (Cyan / Ice Blue stroke)
 const lessonGauge = monitorGrid.set(6, 6, 2, 6, contrib.gauge, {
   label: ' [ PRIEBEH VYUČOVANIA ] ',
-  stroke: 'white',
+  stroke: 'cyan',
   fill: 'white',
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
   },
 });
 
-// 6. Mini Tasks Table (Monochrome; orange selection when focused)
+// 6. Mini Tasks Table (Light blue headers; orange selection when focused)
 const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   keys: true,
   interactive: true,
   label: ' [ ÚLOHY A PÍSOMKY ] ',
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   columnSpacing: 2,
   columnWidth: [11, 10, 18, 30],
   headers: ['TERMÍN', 'TYP', 'UČITEĽ', 'ZADANIE'],
@@ -271,8 +276,8 @@ const miniTasksTable = monitorGrid.set(8, 6, 4, 6, contrib.table, {
   selectedFg: 'black',
   selectedBg: COLOR_ORANGE,
   style: {
-    border: { fg: COLOR_DARK_GRAY },
-    header: { fg: 'white', bold: true },
+    border: { fg: COLOR_STEEL_BLUE },
+    header: { fg: 153, bold: true },
   },
 });
 
@@ -298,10 +303,10 @@ const timetableSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ ROZVRH ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -316,10 +321,10 @@ const timetableMainBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ TÝŽDENNÝ ROZVRH ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -348,14 +353,14 @@ function createEmptyTabPlaceholder(labelText) {
     tags: true,
     align: 'center',
     valign: 'middle',
-    border: { type: 'line', fg: COLOR_DARK_GRAY },
+    border: { type: 'line', fg: COLOR_STEEL_BLUE },
     label: ` [ ${labelText} ] `,
     style: {
-      border: { fg: COLOR_DARK_GRAY },
+      border: { fg: COLOR_STEEL_BLUE },
       fg: 'white',
       bg: 'black',
     },
-    content: `{bold}{white-fg}${labelText}{/white-fg}{/bold}\n\n{244-fg}Zatiaľ prázdne.{/244-fg}`,
+    content: `{bold}{153-fg}${labelText}{/153-fg}{/bold}\n\n{244-fg}Zatiaľ prázdne.{/244-fg}`,
   });
 
   return container;
@@ -381,10 +386,10 @@ const gradesSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ PREDMETY ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -399,10 +404,10 @@ const gradesMainBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ ZNÁMKY ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -428,10 +433,10 @@ const messagesSidebar = blessed.box({
   width: SIDEBAR_WIDTH,
   height: '100%',
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ FILTRE ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -444,10 +449,10 @@ const messagesSearchBox = blessed.box({
   width: `100%-${SIDEBAR_WIDTH}`,
   height: 3,
   tags: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ HĽADAŤ ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -462,10 +467,10 @@ const messagesFeedBox = blessed.box({
   tags: true,
   scrollable: true,
   alwaysScroll: true,
-  border: { type: 'line', fg: COLOR_DARK_GRAY },
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
   label: ' [ SPRÁVY ] ',
   style: {
-    border: { fg: COLOR_DARK_GRAY },
+    border: { fg: COLOR_STEEL_BLUE },
     fg: 'white',
     bg: 'black',
   },
@@ -502,13 +507,13 @@ function updateMonitorFocusStyles() {
   const ttFocused = isMonitorCard && activeWidgetIndex === 0;
   const tasksFocused = isMonitorCard && activeWidgetIndex === 1;
 
-  timetableTable.style.border.fg = ttFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  timetableTable.style.border.fg = ttFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   if (timetableTable.rows && timetableTable.rows.style && timetableTable.rows.style.selected) {
     timetableTable.rows.style.selected.bg = ttFocused ? COLOR_ORANGE : COLOR_CHARCOAL;
     timetableTable.rows.style.selected.fg = ttFocused ? 'black' : 'white';
   }
 
-  miniTasksTable.style.border.fg = tasksFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  miniTasksTable.style.border.fg = tasksFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   if (miniTasksTable.rows && miniTasksTable.rows.style && miniTasksTable.rows.style.selected) {
     miniTasksTable.rows.style.selected.bg = tasksFocused ? COLOR_ORANGE : COLOR_CHARCOAL;
     miniTasksTable.rows.style.selected.fg = tasksFocused ? 'black' : 'white';
@@ -518,11 +523,11 @@ function updateMonitorFocusStyles() {
 function updateFooter() {
   if (activeTabIndex === 3 && navFocus === 'card') {
     footerBox.setContent(
-      ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[↑/↓]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[←/→/Tab]{/250-fg} {244-fg}Panel{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Space]{/250-fg} {244-fg}Filter{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[/]{/250-fg} {244-fg}Hľadať{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}'
+      ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[↑/↓]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[←/→/Tab]{/153-fg} {244-fg}Panel{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Space]{/153-fg} {244-fg}Filter{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[/]{/153-fg} {244-fg}Hľadať{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
     );
   } else {
     footerBox.setContent(
-      ' {250-fg}[1-5]{/250-fg} {244-fg}Karty{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Šípky]{/250-fg} {244-fg}Pohyb{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[Enter]{/250-fg} {244-fg}Výber{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[r]{/250-fg} {244-fg}Obnoviť{/244-fg}  {240-fg}│{/240-fg}  {250-fg}[q]{/250-fg} {244-fg}Koniec{/244-fg}'
+      ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Šípky]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Enter]{/153-fg} {244-fg}Výber{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
     );
   }
 }
@@ -587,10 +592,10 @@ function updateHeader() {
 
   const statusBadge = isFetching
     ? '{244-fg}[SYNC]{/244-fg}'
-    : '{250-fg}[ONLINE]{/250-fg}';
+    : '{153-fg}[ONLINE]{/153-fg}';
 
   const isTopFocused = navFocus === 'topbar';
-  headerBox.style.border.fg = isTopFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  headerBox.style.border.fg = isTopFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   headerBox.setLabel(' [ EDUPAGE MONITOR - ' + school + ' ] ');
 
   const tabButtons = TAB_LABELS.map((label, idx) => {
@@ -598,14 +603,14 @@ function updateHeader() {
       if (isTopFocused) {
         return `{208-bg}{black-fg}{bold}${label}{/bold}{/black-fg}{/208-bg}`;
       }
-      return `{238-bg}{white-fg}{bold}${label}{/bold}{/white-fg}{/238-bg}`;
+      return `{24-bg}{153-fg}{bold}${label}{/bold}{/153-fg}{/24-bg}`;
     }
     return `{244-fg}${label.trim()}{/244-fg}`;
   }).join('   ');
 
   headerBox.setContent(
-    ` {244-fg}POUŽÍVATEĽ:{/244-fg} {white-fg}{bold}${user}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PRIEMER:{/244-fg} {white-fg}{bold}${gpa}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PROSPECH:{/244-fg} {250-fg}${standing}{/250-fg}  {240-fg}│{/240-fg}  {244-fg}ZVONENIE:{/244-fg} {white-fg}${nextBell}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}ČAS:{/244-fg} {250-fg}${timeStr}{/250-fg}  ${statusBadge}\n` +
-    ` {244-fg}KARTY:{/244-fg}  ${tabButtons}`
+    ` {110-fg}POUŽÍVATEĽ:{/110-fg} {white-fg}{bold}${user}{/bold}{/white-fg}  {67-fg}│{/67-fg}  {110-fg}PRIEMER:{/110-fg} {153-fg}{bold}${gpa}{/bold}{/153-fg}  {67-fg}│{/67-fg}  {110-fg}PROSPECH:{/110-fg} {250-fg}${standing}{/250-fg}  {67-fg}│{/67-fg}  {110-fg}ZVONENIE:{/110-fg} {117-fg}${nextBell}{/117-fg}  {67-fg}│{/67-fg}  {110-fg}ČAS:{/110-fg} {250-fg}${timeStr}{/250-fg}  ${statusBadge}\n` +
+    ` {110-fg}KARTY:{/110-fg}  ${tabButtons}`
   );
 }
 
@@ -874,7 +879,7 @@ function padRawLine(text, width) {
 
 function renderTimetableSidebar(live) {
   const isFocused = activeTabIndex === 1 && navFocus === 'card';
-  timetableSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  timetableSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   timetableSidebar.setLabel(' [ ROZVRH ] ');
 
   const weekMap = getWeekDataByVariant(ttVariant);
@@ -883,38 +888,38 @@ function renderTimetableSidebar(live) {
 
   const lines = [];
 
-  // 1. Live Clock Status Banner (Monochrome)
-  lines.push(' {244-fg}AKTUÁLNE{/244-fg}');
+  // 1. Live Clock Status Banner (Soft Light Blue / Navy tint)
+  lines.push(' {110-fg}AKTUÁLNE{/110-fg}');
   if (mode === 'LESSON' && currentLesson) {
     const roomStr = currentLesson.room && currentLesson.room !== '-' ? currentLesson.room : '-';
     const hdr = ` ● ${currentLesson.period}. HODINA: ${currentLesson.subject_short || currentLesson.subject}`;
-    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {24-bg}{153-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/153-fg}{/24-bg}`);
     lines.push(` {white-fg}${fitPlain(currentLesson.subject, 30)}{/white-fg}`);
     lines.push(` {250-fg}${currentLesson.time} (${remMin} min) · ${fitPlain(roomStr, 12)}{/250-fg}`);
   } else if (mode === 'BREAK' && nextLesson) {
     const durBreak = bellBreak ? `${bellBreak.duration_min} min` : '';
     const bTitle = bellBreak ? `${bellBreak.after_period}.➔${bellBreak.before_period}.` : 'PRESTÁVKA';
     const hdr = ` ● PRESTÁVKA ${bTitle}${durBreak ? ' (' + durBreak + ')' : ''}`;
-    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {24-bg}{153-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/153-fg}{/24-bg}`);
     lines.push(` {250-fg}Ďalej: ${fitPlain(nextLesson.subject, 22)}{/250-fg}`);
     lines.push(` {244-fg}O ${nextLesson.start || '-'} (za ${remMin} min){/244-fg}`);
   } else if (bellPeriod) {
     const hdr = ` ● ${bellPeriod.period}. HODINA (${bellPeriod.start}-${bellPeriod.end})`;
-    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {24-bg}{153-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/153-fg}{/24-bg}`);
     lines.push(' {244-fg}Voľná hodina{/244-fg}');
   } else if (bellBreak) {
     const hdr = ` ● PRESTÁVKA ${bellBreak.between}`;
-    lines.push(` {236-bg}{white-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/white-fg}{/236-bg}`);
+    lines.push(` {24-bg}{153-fg}{bold}${padRawLine(hdr, 30)}{/bold}{/153-fg}{/24-bg}`);
     lines.push(` {250-fg}${bellBreak.name} (${bellBreak.duration_min} min){/250-fg}`);
   } else if (mode === 'BEFORE' && nextLesson) {
-    lines.push(' {white-fg}{bold}● PRED VYUČOVANÍM{/bold}{/white-fg}');
+    lines.push(' {153-fg}{bold}● PRED VYUČOVANÍM{/bold}{/153-fg}');
     lines.push(` {244-fg}1. hod o ${nextLesson.start || '-'} (za ${remMin} min){/244-fg}`);
   } else {
     lines.push(' {244-fg}● MIMO VYUČOVANIA{/244-fg}');
   }
 
-  lines.push('{240-fg}────────────────────────────────{/240-fg}');
-  lines.push(' {244-fg}ZOBRAZENIE{/244-fg}');
+  lines.push('{67-fg}────────────────────────────────{/67-fg}');
+  lines.push(' {110-fg}ZOBRAZENIE{/110-fg}');
 
   // 2. Interactive Sidebar Menu Items (Orange ONLY on controlled item)
   SIDEBAR_ITEMS.forEach((item, idx) => {
@@ -923,11 +928,11 @@ function renderTimetableSidebar(live) {
     const isToday = isDay && item.dayIdx === todayIdx;
 
     if (idx === 6) {
-      lines.push('{240-fg}────────────────────────────────{/240-fg}');
-      lines.push(' {244-fg}REŽIM ROZVRHU{/244-fg}');
+      lines.push('{67-fg}────────────────────────────────{/67-fg}');
+      lines.push(' {110-fg}REŽIM ROZVRHU{/110-fg}');
     }
     if (idx === 7) {
-      lines.push('{240-fg}────────────────────────────────{/240-fg}');
+      lines.push('{67-fg}────────────────────────────────{/67-fg}');
     }
 
     let active = false;
@@ -962,17 +967,17 @@ function renderTimetableSidebar(live) {
     if (cursorHere) {
       lines.push(`{208-bg}{black-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      lines.push(`{white-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/white-fg}`);
+      lines.push(`{153-fg}{bold}${padRawLine(formattedLine, 32)}{/bold}{/153-fg}`);
     } else if (isToday) {
-      lines.push(`{250-fg}${padRawLine(formattedLine, 32)}{/250-fg}`);
+      lines.push(`{117-fg}${padRawLine(formattedLine, 32)}{/117-fg}`);
     } else {
       lines.push(`{244-fg}${padRawLine(formattedLine, 32)}{/244-fg}`);
     }
   });
 
-  // 3. Live Compact Bell Timeline (Monochrome)
-  lines.push('{240-fg}────────────────────────────────{/240-fg}');
-  lines.push(' {244-fg}DNES ZVONENIA{/244-fg}');
+  // 3. Live Compact Bell Timeline (Light Blue / Navy Accent)
+  lines.push('{67-fg}────────────────────────────────{/67-fg}');
+  lines.push(' {110-fg}DNES ZVONENIA{/110-fg}');
   const periods = getPeriodsSchedule();
   const breaks = getBreaksSchedule();
   const todayKey = todayIdx >= 0 ? dayKeys[todayIdx] : null;
@@ -986,9 +991,9 @@ function renderTimetableSidebar(live) {
       : '---';
     const pLine = `${p.period}. ${p.start}-${p.end} ${subjTxt}`;
     if (isNowPeriod) {
-      lines.push(` {236-bg}{white-fg}{bold}${padRawLine('▸ ' + pLine + ' [TERAZ]', 30)}{/bold}{/white-fg}{/236-bg}`);
+      lines.push(` {24-bg}{117-fg}{bold}${padRawLine('▸ ' + pLine + ' [TERAZ]', 30)}{/bold}{/117-fg}{/24-bg}`);
     } else {
-      const col = les ? '250-fg' : '240-fg';
+      const col = les ? '250-fg' : '244-fg';
       lines.push(` {${col}}  ${fitPlain(pLine, 28)}{/${col}}`);
     }
 
@@ -997,7 +1002,7 @@ function renderTimetableSidebar(live) {
       const isNowBreak = bellBreak && bellBreak.id === br.id;
       if (isNowBreak) {
         const bText = `▸ PREST. ${br.start}-${br.end} (${br.duration_min}m)`;
-        lines.push(` {236-bg}{white-fg}{bold}${padRawLine(bText, 30)}{/bold}{/white-fg}{/236-bg}`);
+        lines.push(` {24-bg}{117-fg}{bold}${padRawLine(bText, 30)}{/bold}{/117-fg}{/24-bg}`);
       }
     }
   });
@@ -1018,17 +1023,17 @@ function renderWeeklyGrid(live) {
   const compactMode = colW < 11;
 
   const variantBanner = ttVariant === 'ACTUAL'
-    ? '{white-fg}{bold}AKTUÁLNY ROZVRH{/bold}{/white-fg}'
+    ? '{153-fg}{bold}AKTUÁLNY ROZVRH{/bold}{/153-fg}'
     : '{250-fg}{bold}STACIONÁRNY ROZVRH{/bold}{/250-fg}';
 
   const liveNote = bellBreak
-    ? `{250-fg}Prestávka ${bellBreak.between} (${bellBreak.start}-${bellBreak.end}){/250-fg}`
+    ? `{110-fg}Prestávka ${bellBreak.between} (${bellBreak.start}-${bellBreak.end}){/110-fg}`
     : (bellPeriod
-      ? `{white-fg}${bellPeriod.period}. hodina (${bellPeriod.start}-${bellPeriod.end}){/white-fg}`
+      ? `{117-fg}${bellPeriod.period}. hodina (${bellPeriod.start}-${bellPeriod.end}){/117-fg}`
       : '{244-fg}Mimo vyučovania{/244-fg}');
 
   const out = [];
-  out.push(` ${variantBanner}   {240-fg}│{/240-fg}   ${liveNote}`);
+  out.push(` ${variantBanner}   {67-fg}│{/67-fg}   ${liveNote}`);
 
   const hLine = (left, mid, right, fill = '─') => {
     const segs = [fill.repeat(dayColW)];
@@ -1037,24 +1042,24 @@ function renderWeeklyGrid(live) {
   };
 
   // Header row (Period number + time)
-  out.push(`{240-fg}${hLine('┌', '┬', '┐')}{/240-fg}`);
-  let hdr1 = '{240-fg}│{/240-fg}' + `{bold}{250-fg}${padVis('DEŇ', dayColW, 'center')}{/250-fg}{/bold}`;
-  let hdr2 = '{240-fg}│{/240-fg}' + ' '.repeat(dayColW);
+  out.push(`{67-fg}${hLine('┌', '┬', '┐')}{/67-fg}`);
+  let hdr1 = '{67-fg}│{/67-fg}' + `{bold}{110-fg}${padVis('DEŇ', dayColW, 'center')}{/110-fg}{/bold}`;
+  let hdr2 = '{67-fg}│{/67-fg}' + ' '.repeat(dayColW);
 
   periods.forEach((p) => {
     const isNowP = bellPeriod && String(bellPeriod.period) === String(p.period);
     const pLabel = compactMode ? `${p.period}. HOD` : `${p.period}. HODINA`;
     const tLabel = compactMode ? `${p.start.replace(/^0/, '')}-${p.end.replace(/^0/, '')}` : `${p.start}-${p.end}`;
-    const hdrTag = isNowP ? '{238-bg}{white-fg}{bold}' : '{white-fg}{bold}';
-    const timeTag = isNowP ? '{238-bg}{250-fg}' : '{244-fg}';
-    hdr1 += '{240-fg}│{/240-fg}' + `${hdrTag}${padVis(pLabel, colW, 'center')}{/}`;
-    hdr2 += '{240-fg}│{/240-fg}' + `${timeTag}${padVis(tLabel, colW, 'center')}{/}`;
+    const hdrTag = isNowP ? '{24-bg}{117-fg}{bold}' : '{153-fg}{bold}';
+    const timeTag = isNowP ? '{24-bg}{153-fg}' : '{244-fg}';
+    hdr1 += '{67-fg}│{/67-fg}' + `${hdrTag}${padVis(pLabel, colW, 'center')}{/}`;
+    hdr2 += '{67-fg}│{/67-fg}' + `${timeTag}${padVis(tLabel, colW, 'center')}{/}`;
   });
-  hdr1 += '{240-fg}│{/240-fg}';
-  hdr2 += '{240-fg}│{/240-fg}';
+  hdr1 += '{67-fg}│{/67-fg}';
+  hdr2 += '{67-fg}│{/67-fg}';
   out.push(hdr1);
   out.push(hdr2);
-  out.push(`{240-fg}${hLine('├', '┼', '┤')}{/240-fg}`);
+  out.push(`{67-fg}${hLine('├', '┼', '┤')}{/67-fg}`);
 
   // 5 Day Rows
   const defaultDayNames = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok'];
@@ -1072,12 +1077,12 @@ function renderWeeklyGrid(live) {
     const lineCount = fourLineCells ? 4 : 3;
     const rowLines = Array.from({ length: lineCount }, () => '');
 
-    // Day column (Monochrome)
-    const dayTagStart = isToday ? '{238-bg}{white-fg}{bold}' : '{250-fg}{bold}';
-    rowLines[0] = `{240-fg}│{/240-fg}${dayTagStart}${padVis(dayName.toUpperCase(), dayColW, 'center')}{/}`;
-    rowLines[1] = `{240-fg}│{/240-fg}${isToday ? '{white-fg}{bold}' : '{244-fg}'}${padVis(isToday ? '[DNES]' : dateShort, dayColW, 'center')}{/}`;
-    if (lineCount >= 3) rowLines[2] = `{240-fg}│{/240-fg}${isToday && dateShort ? '{244-fg}' + padVis(dateShort, dayColW, 'center') + '{/}' : ' '.repeat(dayColW)}`;
-    if (lineCount >= 4) rowLines[3] = `{240-fg}│{/240-fg}${' '.repeat(dayColW)}`;
+    // Day column (Light-Blue / Slate / Gray)
+    const dayTagStart = isToday ? '{24-bg}{117-fg}{bold}' : '{110-fg}{bold}';
+    rowLines[0] = `{67-fg}│{/67-fg}${dayTagStart}${padVis(dayName.toUpperCase(), dayColW, 'center')}{/}`;
+    rowLines[1] = `{67-fg}│{/67-fg}${isToday ? '{24-bg}{153-fg}{bold}' : '{244-fg}'}${padVis(isToday ? '[DNES]' : dateShort, dayColW, 'center')}{/}`;
+    if (lineCount >= 3) rowLines[2] = `{67-fg}│{/67-fg}${isToday && dateShort ? '{244-fg}' + padVis(dateShort, dayColW, 'center') + '{/}' : ' '.repeat(dayColW)}`;
+    if (lineCount >= 4) rowLines[3] = `{67-fg}│{/67-fg}${' '.repeat(dayColW)}`;
 
     // 8 Period cells
     for (let pNum = 1; pNum <= 8; pNum++) {
@@ -1086,10 +1091,10 @@ function renderWeeklyGrid(live) {
       const isNowCell = isToday && bellPeriod && String(bellPeriod.period) === String(pNum);
       const isNextAfterBreak = isToday && bellBreak && String(bellBreak.before_period) === String(pNum);
 
-      const sep = '{240-fg}│{/240-fg}';
+      const sep = '{67-fg}│{/67-fg}';
 
       if (!les) {
-        rowLines[0] += sep + (isNowCell ? `{236-bg}{white-fg}${padVis('VOĽNO', colW, 'center')}{/}` : ' '.repeat(colW));
+        rowLines[0] += sep + (isNowCell ? `{24-bg}{117-fg}${padVis('VOĽNO', colW, 'center')}{/}` : ' '.repeat(colW));
         rowLines[1] += sep + `{240-fg}${padVis('·', colW, 'center')}{/240-fg}`;
         if (lineCount >= 3) rowLines[2] += sep + ' '.repeat(colW);
         if (lineCount >= 4) rowLines[3] += sep + ' '.repeat(colW);
@@ -1098,28 +1103,28 @@ function renderWeeklyGrid(live) {
 
       // Line 1: Skratka + Status Tag
       let sTitle = les.subject_short || fitPlain(les.subject, 5).toUpperCase();
-      let titleTagStart = '{white-fg}{bold}';
-      let titleTagEnd = '{/bold}{/white-fg}';
+      let titleTagStart = '{153-fg}{bold}';
+      let titleTagEnd = '{/bold}{/153-fg}';
       if (isNowCell && !les.is_cancelled) {
         sTitle = `▸ ${sTitle} ◂`;
-        titleTagStart = '{238-bg}{white-fg}{bold}';
-        titleTagEnd = '{/bold}{/white-fg}{/238-bg}';
+        titleTagStart = '{24-bg}{117-fg}{bold}';
+        titleTagEnd = '{/bold}{/117-fg}{/24-bg}';
       } else if (les.is_cancelled) {
         sTitle = `${sTitle} [ODP]`;
         titleTagStart = '{240-fg}';
         titleTagEnd = '{/240-fg}';
       } else if (les.is_changed) {
         sTitle = `${sTitle} [ZMN]`;
-        titleTagStart = '{250-fg}{bold}';
-        titleTagEnd = '{/bold}{/250-fg}';
+        titleTagStart = '{117-fg}{bold}';
+        titleTagEnd = '{/bold}{/117-fg}';
       } else if (les.is_event) {
         sTitle = `${sTitle} [UDL]`;
-        titleTagStart = '{250-fg}{bold}';
-        titleTagEnd = '{/bold}{/250-fg}';
+        titleTagStart = '{110-fg}{bold}';
+        titleTagEnd = '{/bold}{/110-fg}';
       } else if (isNextAfterBreak && mode === 'BREAK') {
         sTitle = `> ${sTitle}`;
-        titleTagStart = '{white-fg}{bold}';
-        titleTagEnd = '{/bold}{/white-fg}';
+        titleTagStart = '{117-fg}{bold}';
+        titleTagEnd = '{/bold}{/117-fg}';
       }
 
       // Line 2: Čas (od-do)
@@ -1150,8 +1155,8 @@ function renderWeeklyGrid(live) {
       }
     }
 
-    rowLines.forEach((ln) => out.push(ln + '{240-fg}│{/240-fg}'));
-    out.push(`{240-fg}${dIdx < 4 ? hLine('├', '┼', '┤') : hLine('└', '┴', '┘')}{/240-fg}`);
+    rowLines.forEach((ln) => out.push(ln + '{67-fg}│{/67-fg}'));
+    out.push(`{67-fg}${dIdx < 4 ? hLine('├', '┼', '┤') : hLine('└', '┴', '┘')}{/67-fg}`);
   }
 
   timetableMainBox.setLabel(` [ ROZVRH HODÍN: CELÝ TÝŽDEŇ (${ttVariant === 'ACTUAL' ? 'AKTUÁLNY' : 'STACIONÁRNY'}) ] `);
@@ -1190,72 +1195,72 @@ function renderSingleDayView(dayIndex, live) {
   ].join(m) + r;
 
   const variantBanner = ttVariant === 'ACTUAL'
-    ? '{white-fg}AKTUÁLNY{/white-fg}'
+    ? '{153-fg}AKTUÁLNY{/153-fg}'
     : '{250-fg}STACIONÁRNY{/250-fg}';
 
   const lines = [];
-  lines.push(` {bold}{white-fg}${dayName.toUpperCase()} ${dateStr}{/white-fg}${isToday ? ' {238-bg}{white-fg} DNES {/}' : ''}{/bold}   {240-fg}│{/240-fg}   {244-fg}Režim:{/244-fg} ${variantBanner}`);
-  lines.push(`{240-fg}${borderLine('┌', '┬', '┐')}{/240-fg}`);
+  lines.push(` {bold}{153-fg}${dayName.toUpperCase()} ${dateStr}{/153-fg}${isToday ? ' {24-bg}{117-fg} DNES {/}' : ''}{/bold}   {67-fg}│{/67-fg}   {110-fg}Režim:{/110-fg} ${variantBanner}`);
+  lines.push(`{67-fg}${borderLine('┌', '┬', '┐')}{/67-fg}`);
   lines.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('HOD', wH, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('TRIEDA', wCls)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UČEBŇA', wRoom)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('STAV', wStat, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('HOD', wH, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PREDMET', wSubj)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('TRIEDA', wCls)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UČEBŇA', wRoom)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('STAV', wStat, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  lines.push(`{240-fg}${borderLine('├', '┼', '┤')}{/240-fg}`);
+  lines.push(`{67-fg}${borderLine('├', '┼', '┤')}{/67-fg}`);
 
   periods.forEach((p, idx) => {
     const les = lessons.find((l) => String(l.period) === String(p.period));
     const isNow = isToday && live.bellPeriod && String(live.bellPeriod.period) === String(p.period);
 
     if (!les) {
-      const rowColor = isNow ? '{white-fg}{bold}' : '{240-fg}';
+      const rowColor = isNow ? '{24-bg}{117-fg}{bold}' : '{244-fg}';
       lines.push(
-        '{240-fg}│{/240-fg}' +
-        `${rowColor}${padVis(p.period + '.', wH, 'center')}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis(`${p.start}-${p.end}`, wTime, 'center')}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis('-', wShort, 'center')}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis('Voľná hodina', wSubj)}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis('-', wCls)}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis('-', wRoom)}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis('-', wTeach)}{/}{240-fg}│{/240-fg}` +
-        `${rowColor}${padVis(isNow ? 'TERAZ VOĽNO' : 'VOĽNO', wStat, 'center')}{/}{240-fg}│{/240-fg}`
+        '{67-fg}│{/67-fg}' +
+        `${rowColor}${padVis(p.period + '.', wH, 'center')}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis(`${p.start}-${p.end}`, wTime, 'center')}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis('-', wShort, 'center')}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis('Voľná hodina', wSubj)}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis('-', wCls)}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis('-', wRoom)}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis('-', wTeach)}{/}{67-fg}│{/67-fg}` +
+        `${rowColor}${padVis(isNow ? 'TERAZ VOĽNO' : 'VOĽNO', wStat, 'center')}{/}{67-fg}│{/67-fg}`
       );
     } else {
       const clsGrp = les.group ? `${les.class_name} (${les.group})` : (les.class_name || '-');
       let stText = les.status || 'PLÁN';
-      let fgCol = 'white-fg';
+      let fgCol = '153-fg';
       if (isNow && !les.is_cancelled) {
         stText = `TERAZ (${live.pct}%)`;
-        fgCol = 'white-fg';
+        fgCol = '117-fg';
       } else if (les.is_cancelled) {
         stText = 'ODPADLA';
         fgCol = '240-fg';
       } else if (les.is_changed) {
         stText = 'ZMENA';
-        fgCol = '250-fg';
+        fgCol = '117-fg';
       } else if (les.is_event) {
         stText = 'UDALOSŤ';
-        fgCol = '250-fg';
+        fgCol = '110-fg';
       }
 
-      const rowPrefix = isNow && !les.is_cancelled ? '{238-bg}{white-fg}{bold}' : `{${fgCol}}`;
+      const rowPrefix = isNow && !les.is_cancelled ? '{24-bg}{117-fg}{bold}' : `{${fgCol}}`;
       const rowEnd = '{/}';
       lines.push(
-        '{240-fg}│{/240-fg}' +
-        `${rowPrefix}${padVis(p.period + '.', wH, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(les.time || `${p.start}-${p.end}`, wTime, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(les.subject_short || '-', wShort, 'center')}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(les.subject || '-', wSubj)}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(clsGrp, wCls)}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(les.room || '-', wRoom)}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(les.teacher || '-', wTeach)}${rowEnd}{240-fg}│{/240-fg}` +
-        `${rowPrefix}${padVis(stText, wStat, 'center')}${rowEnd}{240-fg}│{/240-fg}`
+        '{67-fg}│{/67-fg}' +
+        `${rowPrefix}${padVis(p.period + '.', wH, 'center')}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(les.time || `${p.start}-${p.end}`, wTime, 'center')}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(les.subject_short || '-', wShort, 'center')}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(les.subject || '-', wSubj)}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(clsGrp, wCls)}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(les.room || '-', wRoom)}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(les.teacher || '-', wTeach)}${rowEnd}{67-fg}│{/67-fg}` +
+        `${rowPrefix}${padVis(stText, wStat, 'center')}${rowEnd}{67-fg}│{/67-fg}`
       );
     }
 
@@ -1263,12 +1268,12 @@ function renderSingleDayView(dayIndex, live) {
     if (br) {
       const isNowBreak = isToday && live.bellBreak && live.bellBreak.id === br.id;
       const brSummary = `   · Prestávka ${br.between}: ${br.start} - ${br.end} (${br.duration_min} min · ${br.name}) ${isNowBreak ? '◀ PREBIEHA' : ''}`;
-      const brTag = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{244-fg}';
-      lines.push(`{240-fg}│{/240-fg}${brTag}${padVis(brSummary, innerW)}{/}{240-fg}│{/240-fg}`);
+      const brTag = isNowBreak ? '{24-bg}{117-fg}{bold}' : '{244-fg}';
+      lines.push(`{67-fg}│{/67-fg}${brTag}${padVis(brSummary, innerW)}{/}{67-fg}│{/67-fg}`);
     }
   });
 
-  lines.push(`{240-fg}${borderLine('└', '┴', '┘')}{/240-fg}`);
+  lines.push(`{67-fg}${borderLine('└', '┴', '┘')}{/67-fg}`);
 
   timetableMainBox.setLabel(` [ ROZVRH: ${dayName.toUpperCase()} ] `);
   timetableMainBox.setContent(lines.join('\n'));
@@ -1291,35 +1296,35 @@ function renderBreaksView(live) {
   ].join(m) + r;
 
   const lines = [];
-  lines.push(`{240-fg}${hLine('┌', '┬', '┐')}{/240-fg}`);
+  lines.push(`{67-fg}${hLine('┌', '┬', '┐')}{/67-fg}`);
   lines.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('#', wId, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('MEDZI HODINAMI', wBetw, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('TRVANIE', wDur, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('NÁZOV', wType)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('#', wId, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('MEDZI HODINAMI', wBetw, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('ČAS', wTime, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('TRVANIE', wDur, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('NÁZOV', wType)}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  lines.push(`{240-fg}${hLine('├', '┼', '┤')}{/240-fg}`);
+  lines.push(`{67-fg}${hLine('├', '┼', '┤')}{/67-fg}`);
 
   breaks.forEach((b, i) => {
     const isNowBreak = live.bellBreak && live.bellBreak.id === b.id;
-    const wrapStart = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{white-fg}';
-    const mutedStart = isNowBreak ? '{238-bg}{white-fg}{bold}' : '{250-fg}';
+    const wrapStart = isNowBreak ? '{24-bg}{117-fg}{bold}' : '{153-fg}';
+    const mutedStart = isNowBreak ? '{24-bg}{117-fg}{bold}' : '{250-fg}';
     const wrapEnd = '{/}';
     const typeLabel = isNowBreak ? `${b.name}  [PRÁVE PREBIEHA]` : b.name;
 
     lines.push(
-      '{240-fg}│{/240-fg}' +
-      `${mutedStart}${padVis(`${i + 1}.`, wId, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
-      `${wrapStart}${padVis(b.between, wBetw, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
-      `${mutedStart}${padVis(`${b.start} - ${b.end}`, wTime, 'center')}${wrapEnd}{240-fg}│{/240-fg}` +
-      `${wrapStart}{bold}${padVis(`${b.duration_min} min`, wDur, 'center')}{/bold}${wrapEnd}{240-fg}│{/240-fg}` +
-      `${mutedStart}${padVis(typeLabel, wType)}${wrapEnd}{240-fg}│{/240-fg}`
+      '{67-fg}│{/67-fg}' +
+      `${mutedStart}${padVis(`${i + 1}.`, wId, 'center')}${wrapEnd}{67-fg}│{/67-fg}` +
+      `${wrapStart}${padVis(b.between, wBetw, 'center')}${wrapEnd}{67-fg}│{/67-fg}` +
+      `${mutedStart}${padVis(`${b.start} - ${b.end}`, wTime, 'center')}${wrapEnd}{67-fg}│{/67-fg}` +
+      `${wrapStart}{bold}${padVis(`${b.duration_min} min`, wDur, 'center')}{/bold}${wrapEnd}{67-fg}│{/67-fg}` +
+      `${mutedStart}${padVis(typeLabel, wType)}${wrapEnd}{67-fg}│{/67-fg}`
     );
   });
 
-  lines.push(`{240-fg}${hLine('└', '┴', '┘')}{/240-fg}`);
+  lines.push(`{67-fg}${hLine('└', '┴', '┘')}{/67-fg}`);
 
   timetableMainBox.setLabel(' [ PRESTÁVKY ] ');
   timetableMainBox.setContent(lines.join('\n'));
@@ -1378,7 +1383,7 @@ function getGradesSidebarItems() {
 
 function renderGradesSidebar() {
   const isFocused = activeTabIndex === 2 && navFocus === 'card';
-  gradesSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  gradesSidebar.style.border.fg = isFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   gradesSidebar.setLabel(' [ ZNÁMKY ] ');
 
   const items = getGradesSidebarItems();
@@ -1390,12 +1395,12 @@ function renderGradesSidebar() {
   const subjCount = (dashboardData.subjects || []).length;
 
   const lines = [];
-  lines.push(' {244-fg}SÚHRN{/244-fg}');
-  lines.push(` {236-bg}{white-fg}{bold}${padRawLine(` ● PRIEMER: ${gpa}`, 30)}{/bold}{/white-fg}{/236-bg}`);
+  lines.push(' {110-fg}SÚHRN{/110-fg}');
+  lines.push(` {24-bg}{153-fg}{bold}${padRawLine(` ● PRIEMER: ${gpa}`, 30)}{/bold}{/153-fg}{/24-bg}`);
   lines.push(` {250-fg}${fitPlain(standing, 30)}{/250-fg}`);
   lines.push(` {244-fg}Známok: ${totalMarks}  ·  Predmetov: ${subjCount}{/244-fg}`);
-  lines.push('{240-fg}────────────────────────────────{/240-fg}');
-  lines.push(' {244-fg}ZOBRAZENIE{/244-fg}');
+  lines.push('{67-fg}────────────────────────────────{/67-fg}');
+  lines.push(' {110-fg}ZOBRAZENIE{/110-fg}');
 
   // Render fixed top 2 items (OVERVIEW and COMMENDATIONS)
   for (let idx = 0; idx < Math.min(2, items.length); idx++) {
@@ -1406,14 +1411,14 @@ function renderGradesSidebar() {
     if (cursorHere) {
       lines.push(`{208-bg}{black-fg}{bold}${padRawLine(text, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      lines.push(`{white-fg}{bold}${padRawLine(text, 32)}{/bold}{/white-fg}`);
+      lines.push(`{153-fg}{bold}${padRawLine(text, 32)}{/bold}{/153-fg}`);
     } else {
       lines.push(`{244-fg}${padRawLine(text, 32)}{/244-fg}`);
     }
   }
 
-  lines.push('{240-fg}────────────────────────────────{/240-fg}');
-  lines.push(` {244-fg}PREDMETY (${subjCount}){/244-fg}`);
+  lines.push('{67-fg}────────────────────────────────{/67-fg}');
+  lines.push(` {110-fg}PREDMETY (${subjCount}){/110-fg}`);
 
   const subjItems = items.slice(2);
   const boxH = gradesSidebar.height || 37;
@@ -1427,7 +1432,7 @@ function renderGradesSidebar() {
   const endIdx = Math.min(subjItems.length, startIdx + availRows);
 
   if (startIdx > 0) {
-    lines.push(` {240-fg}  ▲ (${startIdx}){/240-fg}`);
+    lines.push(` {244-fg}  ▲ (${startIdx}){/244-fg}`);
   }
 
   for (let sIdx = startIdx; sIdx < endIdx; sIdx++) {
@@ -1442,14 +1447,14 @@ function renderGradesSidebar() {
     if (cursorHere) {
       lines.push(`{208-bg}{black-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (active) {
-      lines.push(`{white-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/white-fg}`);
+      lines.push(`{153-fg}{bold}${padRawLine(' ' + rawLine, 32)}{/bold}{/153-fg}`);
     } else {
-      lines.push(`{240-fg}   ${branch}{/240-fg} {white-fg}${(s.short || s.name || '-').padEnd(4, ' ')}{/white-fg} {244-fg}${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')}{/244-fg} {250-fg}[${(s.avg || '-').padStart(4, ' ')}]{/250-fg}`);
+      lines.push(`{67-fg}   ${branch}{/67-fg} {bold}{white-fg}${(s.short || s.name || '-').padEnd(4, ' ')}{/white-fg}{/bold} {244-fg}${fitPlain(s.full_name || s.name, 13).padEnd(13, ' ')}{/244-fg} {117-fg}[${(s.avg || '-').padStart(4, ' ')}]{/117-fg}`);
     }
   }
 
   if (endIdx < subjItems.length) {
-    lines.push(` {240-fg}  ▼ (${subjItems.length - endIdx}){/240-fg}`);
+    lines.push(` {244-fg}  ▼ (${subjItems.length - endIdx}){/244-fg}`);
   }
 
   gradesSidebar.setContent(lines.join('\n'));
@@ -1507,7 +1512,7 @@ function renderGradesOverview() {
       rowChars += padVis(cellStr, colStep, 'center');
     }
     const labelStr = ` ${lvl.toFixed(1)} ┤`;
-    chartRows.push(`{244-fg}${labelStr}{/244-fg}{white-fg}${padRawLine(rowChars, leftW - 6)}{/white-fg}`);
+    chartRows.push(`{244-fg}${labelStr}{/244-fg}{117-fg}${padRawLine(rowChars, leftW - 6)}{/117-fg}`);
   });
 
   let xAxisBody = '';
@@ -1528,25 +1533,25 @@ function renderGradesOverview() {
     const rightStats = ` ${String(cnt).padStart(2, ' ')}x (${pct.padStart(5, ' ')}%)`;
     const padRem = Math.max(0, rightW - (linePlain.length + bar.length + rightStats.length));
     distRows.push(
-      `{250-fg}${linePlain}{/250-fg}{white-fg}${bar}{/white-fg}{244-fg}${rightStats}{/244-fg}${' '.repeat(padRem)}`
+      `{250-fg}${linePlain}{/250-fg}{153-fg}${bar}{/153-fg}{244-fg}${rightStats}{/244-fg}${' '.repeat(padRem)}`
     );
   }
   const passCount = distData[0] + distData[1] + distData[2] + distData[3];
   const passRate = totalClassified > 0 ? ((passCount / totalClassified) * 100).toFixed(1) : '0.0';
   const summaryTxt = ` Spolu: ${totalClassified}   │   Priemer: ${dashboardData.gpa || '-'}   │   Úspešnosť: ${passRate}%`;
-  distRows.push(`{250-fg}${padRawLine(summaryTxt, rightW)}{/250-fg}`);
+  distRows.push(`{110-fg}${padRawLine(summaryTxt, rightW)}{/110-fg}`);
 
   const out = [];
-  out.push(`{240-fg}${topLine}{/240-fg}`);
+  out.push(`{67-fg}${topLine}{/67-fg}`);
   out.push(
-    `{240-fg}│{/240-fg}{bold}{white-fg}${padRawLine(' VÝVOJ PRIEMERU', leftW)}{/white-fg}{/bold}` +
-    `{240-fg}│{/240-fg}{bold}{white-fg}${padRawLine(' DISTRIBÚCIA ZNÁMOK (1 - 5)', rightW)}{/white-fg}{/bold}{240-fg}│{/240-fg}`
+    `{67-fg}│{/67-fg}{bold}{153-fg}${padRawLine(' VÝVOJ PRIEMERU', leftW)}{/153-fg}{/bold}` +
+    `{67-fg}│{/67-fg}{bold}{153-fg}${padRawLine(' DISTRIBÚCIA ZNÁMOK (1 - 5)', rightW)}{/153-fg}{/bold}{67-fg}│{/67-fg}`
   );
-  out.push(`{240-fg}${midLine}{/240-fg}`);
+  out.push(`{67-fg}${midLine}{/67-fg}`);
   for (let r = 0; r < 6; r++) {
-    out.push(`{240-fg}│{/240-fg}${chartRows[r]}{240-fg}│{/240-fg}${distRows[r]}{240-fg}│{/240-fg}`);
+    out.push(`{67-fg}│{/67-fg}${chartRows[r]}{67-fg}│{/67-fg}${distRows[r]}{67-fg}│{/67-fg}`);
   }
-  out.push(`{240-fg}${botLine}{/240-fg}`);
+  out.push(`{67-fg}${botLine}{/67-fg}`);
 
   // 2. Bottom Full-Width Table of All Subjects
   const wShort = 6;
@@ -1563,38 +1568,38 @@ function renderGradesOverview() {
     '─'.repeat(wPct), '─'.repeat(wAvg), '─'.repeat(wFin), '─'.repeat(wVerb),
   ].join(m) + r;
 
-  out.push(`{240-fg}${tLine('┌', '┬', '┐')}{/240-fg}`);
+  out.push(`{67-fg}${tLine('┌', '┬', '┐')}{/67-fg}`);
   out.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('ZNÁMKY', wMarks)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('POČ.', wCnt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('%', wPct, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PRIEMER', wAvg, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('VYS.', wFin, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('HODNOTENIE', wVerb, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('SKR.', wShort, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PREDMET', wSubj)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('ZNÁMKY', wMarks)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('POČ.', wCnt, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('%', wPct, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PRIEMER', wAvg, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('VYS.', wFin, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('HODNOTENIE', wVerb, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  out.push(`{240-fg}${tLine('├', '┼', '┤')}{/240-fg}`);
+  out.push(`{67-fg}${tLine('├', '┼', '┤')}{/67-fg}`);
 
   subjs.forEach((s) => {
     const marksStr = (s.marks_preview && s.marks_preview.length > 0)
       ? s.marks_preview.join(', ')
       : '-';
     out.push(
-      '{240-fg}│{/240-fg}' +
-      `{bold}{white-fg}${padVis(s.short || s.name, wShort, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-      `{250-fg}${padVis(s.full_name || s.name, wSubj)}{/250-fg}{240-fg}│{/240-fg}` +
-      `{white-fg}${padVis(marksStr, wMarks)}{/white-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis(String(s.count || 0), wCnt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis(s.percent || '-', wPct, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{bold}{white-fg}${padVis(s.avg || '-', wAvg, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-      `{bold}{white-fg}${padVis(s.final_grade || '-', wFin, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-      `{250-fg}${padVis(s.verbal || '-', wVerb, 'center')}{/250-fg}{240-fg}│{/240-fg}`
+      '{67-fg}│{/67-fg}' +
+      `{bold}{white-fg}${padVis(s.short || s.name, wShort, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
+      `{250-fg}${padVis(s.full_name || s.name, wSubj)}{/250-fg}{67-fg}│{/67-fg}` +
+      `{153-fg}${padVis(marksStr, wMarks)}{/153-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis(String(s.count || 0), wCnt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis(s.percent || '-', wPct, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{bold}{117-fg}${padVis(s.avg || '-', wAvg, 'center')}{/117-fg}{/bold}{67-fg}│{/67-fg}` +
+      `{bold}{white-fg}${padVis(s.final_grade || '-', wFin, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
+      `{250-fg}${padVis(s.verbal || '-', wVerb, 'center')}{/250-fg}{67-fg}│{/67-fg}`
     );
   });
 
-  out.push(`{240-fg}${tLine('└', '┴', '┘')}{/240-fg}`);
+  out.push(`{67-fg}${tLine('└', '┴', '┘')}{/67-fg}`);
 
   gradesMainBox.setLabel(' [ PREHĽAD ZNÁMOK ] ');
   gradesMainBox.setContent(out.join('\n'));
@@ -1611,7 +1616,7 @@ function renderCommendationsView() {
 
   const out = [];
   out.push(
-    ` {bold}{white-fg}POCHVALY A POZNÁMKY{/white-fg}{/bold}   {240-fg}│{/240-fg}   ` +
+    ` {bold}{153-fg}POCHVALY A POZNÁMKY{/153-fg}{/bold}   {67-fg}│{/67-fg}   ` +
     `{250-fg}Pochvaly: ${pochvalyCnt}   ·   Poznámky: ${poznamkyCnt}{/250-fg}`
   );
 
@@ -1628,49 +1633,49 @@ function renderCommendationsView() {
     '─'.repeat(wTeach), '─'.repeat(wState), '─'.repeat(wText),
   ].join(m) + r;
 
-  out.push(`{240-fg}${cLine('┌', '┬', '┐')}{/240-fg}`);
+  out.push(`{67-fg}${cLine('┌', '┬', '┐')}{/67-fg}`);
   out.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('#', wNum, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('DRUH', wCat, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PREDMET', wSubj)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('STAV', wState, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('TEXT', wText)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('#', wNum, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('DRUH', wCat, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PREDMET', wSubj)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('STAV', wState, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('TEXT', wText)}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  out.push(`{240-fg}${cLine('├', '┼', '┤')}{/240-fg}`);
+  out.push(`{67-fg}${cLine('├', '┼', '┤')}{/67-fg}`);
 
   if (comms.length === 0) {
     out.push(
-      '{240-fg}│{/240-fg}' +
-      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wCat, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('Správanie', wSubj)}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wTeach)}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wState, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('Žiadne záznamy.', wText)}{/244-fg}{240-fg}│{/240-fg}`
+      '{67-fg}│{/67-fg}' +
+      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wCat, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('Správanie', wSubj)}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wTeach)}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wState, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('Žiadne záznamy.', wText)}{/244-fg}{67-fg}│{/67-fg}`
     );
   } else {
     comms.forEach((c, idx) => {
       out.push(
-        '{240-fg}│{/240-fg}' +
-        `{244-fg}${padVis(`${idx + 1}.`, wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(c.date || '-', wDate, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
-        `{bold}{white-fg}${padVis(c.category || 'ZÁZNAM', wCat, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(c.subject || 'Správanie', wSubj)}{/250-fg}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(c.teacher || '-', wTeach)}{/250-fg}{240-fg}│{/240-fg}` +
-        `{244-fg}${padVis(c.state || '-', wState, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-        `{white-fg}${padVis(c.text || '-', wText)}{/white-fg}{240-fg}│{/240-fg}`
+        '{67-fg}│{/67-fg}' +
+        `{244-fg}${padVis(`${idx + 1}.`, wNum, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(c.date || '-', wDate, 'center')}{/250-fg}{67-fg}│{/67-fg}` +
+        `{bold}{153-fg}${padVis(c.category || 'ZÁZNAM', wCat, 'center')}{/153-fg}{/bold}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(c.subject || 'Správanie', wSubj)}{/250-fg}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(c.teacher || '-', wTeach)}{/250-fg}{67-fg}│{/67-fg}` +
+        `{244-fg}${padVis(c.state || '-', wState, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+        `{white-fg}${padVis(c.text || '-', wText)}{/white-fg}{67-fg}│{/67-fg}`
       );
     });
   }
-  out.push(`{240-fg}${cLine('└', '┴', '┘')}{/240-fg}`);
+  out.push(`{67-fg}${cLine('└', '┴', '┘')}{/67-fg}`);
   out.push('');
 
   // Second Table: Recent Grades Overview with Teachers & Details
-  out.push(' {bold}{white-fg}KOMENTÁRE K ZNÁMKAM{/white-fg}{/bold}');
+  out.push(' {bold}{153-fg}KOMENTÁRE K ZNÁMKAM{/153-fg}{/bold}');
   const gWithNotes = allGrades.filter((g) => g.note && g.note !== '-' && g.note.trim() !== '');
   const listToRender = gWithNotes.length > 0 ? gWithNotes : allGrades.slice(0, 12);
 
@@ -1686,33 +1691,33 @@ function renderCommendationsView() {
     '─'.repeat(gwWgt), '─'.repeat(gwTitle), '─'.repeat(gwNote),
   ].join(m) + r;
 
-  out.push(`{240-fg}${gLine('┌', '┬', '┐')}{/240-fg}`);
+  out.push(`{67-fg}${gLine('┌', '┬', '┐')}{/67-fg}`);
   out.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('DÁTUM', gwDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PREDM.', gwSubj, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('ZNÁMKA', gwGrd, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('VÁHA', gwWgt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UDALOSŤ', gwTitle)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('VYUČUJÚCI / POZNÁMKA', gwNote)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('DÁTUM', gwDate, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PREDM.', gwSubj, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('ZNÁMKA', gwGrd, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('VÁHA', gwWgt, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UDALOSŤ', gwTitle)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('VYUČUJÚCI / POZNÁMKA', gwNote)}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  out.push(`{240-fg}${gLine('├', '┼', '┤')}{/240-fg}`);
+  out.push(`{67-fg}${gLine('├', '┼', '┤')}{/67-fg}`);
 
   listToRender.forEach((g) => {
     const noteOrTeacher = g.note
       ? `${g.teacher && g.teacher !== '-' ? g.teacher + ' · ' : ''}${g.note}`
       : (g.teacher && g.teacher !== '-' ? g.teacher : (g.comment || '-'));
     out.push(
-      '{240-fg}│{/240-fg}' +
-      `{244-fg}${padVis(g.date || '-', gwDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{bold}{white-fg}${padVis(g.subject || '-', gwSubj, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-      `{bold}{white-fg}${padVis(g.grade || '-', gwGrd, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis(g.weight || '1', gwWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{250-fg}${padVis(g.title || '-', gwTitle)}{/250-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis(noteOrTeacher, gwNote)}{/244-fg}{240-fg}│{/240-fg}`
+      '{67-fg}│{/67-fg}' +
+      `{244-fg}${padVis(g.date || '-', gwDate, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{bold}{white-fg}${padVis(g.subject || '-', gwSubj, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
+      `{bold}{117-fg}${padVis(g.grade || '-', gwGrd, 'center')}{/117-fg}{/bold}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis(g.weight || '1', gwWgt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{250-fg}${padVis(g.title || '-', gwTitle)}{/250-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis(noteOrTeacher, gwNote)}{/244-fg}{67-fg}│{/67-fg}`
     );
   });
-  out.push(`{240-fg}${gLine('└', '┴', '┘')}{/240-fg}`);
+  out.push(`{67-fg}${gLine('└', '┴', '┘')}{/67-fg}`);
 
   gradesMainBox.setLabel(' [ POCHVALY A POZNÁMKY ] ');
   gradesMainBox.setContent(out.join('\n'));
@@ -1728,17 +1733,17 @@ function renderSubjectDetailView(subj) {
   const out = [];
 
   // 1. Top Framed Subject Card
-  out.push(`{240-fg}┌${'─'.repeat(innerW)}┐{/240-fg}`);
+  out.push(`{67-fg}┌${'─'.repeat(innerW)}┐{/67-fg}`);
   const titleLine = ` ${(subj.short || subj.name || '-')} — ${subj.full_name || subj.name || '-'}   │   VYUČUJÚCI: ${subj.teacher || '-'}`;
-  out.push(`{240-fg}│{/240-fg}{236-bg}{white-fg}{bold}${padRawLine(titleLine, innerW)}{/bold}{/white-fg}{/236-bg}{240-fg}│{/240-fg}`);
-  out.push(`{240-fg}├${'─'.repeat(innerW)}┤{/240-fg}`);
+  out.push(`{67-fg}│{/67-fg}{24-bg}{153-fg}{bold}${padRawLine(titleLine, innerW)}{/bold}{/153-fg}{/24-bg}{67-fg}│{/67-fg}`);
+  out.push(`{67-fg}├${'─'.repeat(innerW)}┤{/67-fg}`);
 
   const statsLine = ` PRIEMER: ${subj.avg || '-'}   │   PERCENTÁ: ${subj.percent || '-'}   │   VYSVEDČENIE: ${subj.final_grade || '-'} (${subj.verbal || '-'})   │   POČET ZNÁMOK: ${subj.count || 0}`;
-  out.push(`{240-fg}│{/240-fg}{white-fg}${padRawLine(statsLine, innerW)}{/white-fg}{240-fg}│{/240-fg}`);
+  out.push(`{67-fg}│{/67-fg}{153-fg}${padRawLine(statsLine, innerW)}{/153-fg}{67-fg}│{/67-fg}`);
 
   const distSummary = ` DISTRIBÚCIA:  [1]: ${sDist[0]}x   ·   [2]: ${sDist[1]}x   ·   [3]: ${sDist[2]}x   ·   [4]: ${sDist[3]}x   ·   [5]: ${sDist[4]}x`;
-  out.push(`{240-fg}│{/240-fg}{244-fg}${padRawLine(distSummary, innerW)}{/244-fg}{240-fg}│{/240-fg}`);
-  out.push(`{240-fg}└${'─'.repeat(innerW)}┘{/240-fg}`);
+  out.push(`{67-fg}│{/67-fg}{244-fg}${padRawLine(distSummary, innerW)}{/244-fg}{67-fg}│{/67-fg}`);
+  out.push(`{67-fg}└${'─'.repeat(innerW)}┘{/67-fg}`);
   out.push('');
 
   // 2. Detailed Table of All Grades in Subject
@@ -1757,52 +1762,52 @@ function renderSubjectDetailView(subj) {
     '─'.repeat(wPts), '─'.repeat(wWgt), '─'.repeat(wCavg), '─'.repeat(wTitle), '─'.repeat(wTeach),
   ].join(m) + r;
 
-  out.push(`{240-fg}${sLine('┌', '┬', '┐')}{/240-fg}`);
+  out.push(`{67-fg}${sLine('┌', '┬', '┐')}{/67-fg}`);
   out.push(
-    '{240-fg}│{/240-fg}' +
-    `{bold}{250-fg}${padVis('#', wIdx, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('HODNOTENIE', wGrd, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('ZNÁMKA', wNum, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('BODY / %', wPts, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('VÁHA', wWgt, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('PRIEM.TR.', wCavg, 'center')}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UDALOSŤ / TÉMA', wTitle)}{/bold}{/250-fg}{240-fg}│{/240-fg}` +
-    `{bold}{250-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/250-fg}{240-fg}│{/240-fg}`
+    '{67-fg}│{/67-fg}' +
+    `{bold}{110-fg}${padVis('#', wIdx, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('DÁTUM', wDate, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('HODNOTENIE', wGrd, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('ZNÁMKA', wNum, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('BODY / %', wPts, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('VÁHA', wWgt, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('PRIEM.TR.', wCavg, 'center')}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UDALOSŤ / TÉMA', wTitle)}{/bold}{/110-fg}{67-fg}│{/67-fg}` +
+    `{bold}{110-fg}${padVis('UČITEĽ', wTeach)}{/bold}{/110-fg}{67-fg}│{/67-fg}`
   );
-  out.push(`{240-fg}${sLine('├', '┼', '┤')}{/240-fg}`);
+  out.push(`{67-fg}${sLine('├', '┼', '┤')}{/67-fg}`);
 
   if (gRows.length === 0) {
     out.push(
-      '{240-fg}│{/240-fg}' +
-      `{244-fg}${padVis('-', wIdx, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wGrd, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wPts, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wCavg, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('Žiadne známky.', wTitle)}{/244-fg}{240-fg}│{/240-fg}` +
-      `{244-fg}${padVis('-', wTeach)}{/244-fg}{240-fg}│{/240-fg}`
+      '{67-fg}│{/67-fg}' +
+      `{244-fg}${padVis('-', wIdx, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wDate, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wGrd, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wNum, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wPts, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wWgt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wCavg, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('Žiadne známky.', wTitle)}{/244-fg}{67-fg}│{/67-fg}` +
+      `{244-fg}${padVis('-', wTeach)}{/244-fg}{67-fg}│{/67-fg}`
     );
   } else {
     gRows.forEach((g, idx) => {
       out.push(
-        '{240-fg}│{/240-fg}' +
-        `{244-fg}${padVis(`${idx + 1}.`, wIdx, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(g.date || '-', wDate, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
-        `{bold}{white-fg}${padVis(g.grade || '-', wGrd, 'center')}{/white-fg}{/bold}{240-fg}│{/240-fg}` +
-        `{white-fg}${padVis(g.numeric_val || '-', wNum, 'center')}{/white-fg}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(g.points_str || '-', wPts, 'center')}{/250-fg}{240-fg}│{/240-fg}` +
-        `{244-fg}${padVis(g.weight || '1', wWgt, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-        `{244-fg}${padVis(g.class_avg || '-', wCavg, 'center')}{/244-fg}{240-fg}│{/240-fg}` +
-        `{white-fg}${padVis(g.title || '-', wTitle)}{/white-fg}{240-fg}│{/240-fg}` +
-        `{250-fg}${padVis(g.teacher || '-', wTeach)}{/250-fg}{240-fg}│{/240-fg}`
+        '{67-fg}│{/67-fg}' +
+        `{244-fg}${padVis(`${idx + 1}.`, wIdx, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(g.date || '-', wDate, 'center')}{/250-fg}{67-fg}│{/67-fg}` +
+        `{bold}{white-fg}${padVis(g.grade || '-', wGrd, 'center')}{/white-fg}{/bold}{67-fg}│{/67-fg}` +
+        `{bold}{117-fg}${padVis(g.numeric_val || '-', wNum, 'center')}{/117-fg}{/bold}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(g.points_str || '-', wPts, 'center')}{/250-fg}{67-fg}│{/67-fg}` +
+        `{244-fg}${padVis(g.weight || '1', wWgt, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+        `{244-fg}${padVis(g.class_avg || '-', wCavg, 'center')}{/244-fg}{67-fg}│{/67-fg}` +
+        `{white-fg}${padVis(g.title || '-', wTitle)}{/white-fg}{67-fg}│{/67-fg}` +
+        `{250-fg}${padVis(g.teacher || '-', wTeach)}{/250-fg}{67-fg}│{/67-fg}`
       );
     });
   }
 
-  out.push(`{240-fg}${sLine('└', '┴', '┘')}{/240-fg}`);
+  out.push(`{67-fg}${sLine('└', '┴', '┘')}{/67-fg}`);
 
   gradesMainBox.setLabel(` [ ${(subj.short || subj.name || '').toUpperCase()} — ${(subj.full_name || subj.name || '').toUpperCase()} ] `);
   gradesMainBox.setContent(out.join('\n'));
@@ -1999,7 +2004,7 @@ function toggleMessageFilterAtCursor() {
 
 function renderMessagesSidebar() {
   const isFilterFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'filters';
-  messagesSidebar.style.border.fg = isFilterFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesSidebar.style.border.fg = isFilterFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   messagesSidebar.setLabel(' [ FILTRE ] ');
 
   const all = getAllNotificationsList();
@@ -2016,13 +2021,13 @@ function renderMessagesSidebar() {
   const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
 
   const lines = [];
-  lines.push(' {244-fg}ZOBRAZENÉ{/244-fg}');
-  lines.push(` {236-bg}{white-fg}{bold}${padRawLine(` ● ${filtered.length} / ${all.length} SPRÁV`, 30)}{/bold}{/white-fg}{/236-bg}`);
+  lines.push(' {110-fg}ZOBRAZENÉ{/110-fg}');
+  lines.push(` {24-bg}{153-fg}{bold}${padRawLine(` ● ${filtered.length} / ${all.length} SPRÁV`, 30)}{/bold}{/153-fg}{/24-bg}`);
   if (msgSearchQuery.trim()) {
     lines.push(` {250-fg}${fitPlain(`Hľadané: "${msgSearchQuery.trim()}"`, 30)}{/250-fg}`);
   }
-  lines.push('{240-fg}────────────────────────────────{/240-fg}');
-  lines.push(' {244-fg}KATEGÓRIE{/244-fg}');
+  lines.push('{67-fg}────────────────────────────────{/67-fg}');
+  lines.push(' {110-fg}KATEGÓRIE{/110-fg}');
   lines.push('');
 
   // Row 0: VŠETKY TYPY
@@ -2032,7 +2037,7 @@ function renderMessagesSidebar() {
   if (row0Focused) {
     lines.push(`{208-bg}{black-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/black-fg}{/208-bg}`);
   } else if (allChecked) {
-    lines.push(`{white-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/white-fg}`);
+    lines.push(`{153-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/153-fg}`);
   } else {
     lines.push(`{244-fg}${padRawLine(row0Text, 32)}{/244-fg}`);
   }
@@ -2051,9 +2056,9 @@ function renderMessagesSidebar() {
     if (isHere) {
       lines.push(`{208-bg}{black-fg}{bold}${padRawLine(rawRow, 32)}{/bold}{/black-fg}{/208-bg}`);
     } else if (checked) {
-      lines.push(`{white-fg}   [x] ${labelPart}{/white-fg} {244-fg}(${String(cnt).padStart(2, ' ')}){/244-fg}`);
+      lines.push(`{153-fg}   [x] ${labelPart}{/153-fg} {244-fg}(${String(cnt).padStart(2, ' ')}){/244-fg}`);
     } else {
-      lines.push(`{240-fg}   [ ] ${labelPart} (${String(cnt).padStart(2, ' ')}){/240-fg}`);
+      lines.push(`{244-fg}   [ ] ${labelPart} (${String(cnt).padStart(2, ' ')}){/244-fg}`);
     }
     lines.push('');
   });
@@ -2073,7 +2078,7 @@ function renderMessagesSidebar() {
 
 function renderMessagesSearchBox() {
   const isSearchFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'search';
-  messagesSearchBox.style.border.fg = isSearchFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesSearchBox.style.border.fg = isSearchFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   messagesSearchBox.setLabel(' [ HĽADAŤ ] ');
 
   const filteredCount = getFilteredNotifications().length;
@@ -2083,18 +2088,18 @@ function renderMessagesSearchBox() {
   if (isSearchFocused) {
     queryDisplay = `{208-fg}{bold}Hľadať:{/bold}{/208-fg} {white-fg}${msgSearchQuery}{/white-fg}{208-fg}█{/208-fg}`;
   } else if (msgSearchQuery.trim()) {
-    queryDisplay = `{250-fg}Hľadať:{/250-fg} {white-fg}{bold}${msgSearchQuery}{/bold}{/white-fg}`;
+    queryDisplay = `{110-fg}Hľadať:{/110-fg} {153-fg}{bold}${msgSearchQuery}{/bold}{/153-fg}`;
   } else {
     queryDisplay = '{244-fg}Hľadať text alebo predmet...{/244-fg}';
   }
 
-  const rightStat = `{244-fg}${filteredCount} / ${totalCount}{/244-fg}`;
-  messagesSearchBox.setContent(` ${queryDisplay}    {240-fg}│{/240-fg}    ${rightStat}`);
+  const rightStat = `{110-fg}${filteredCount} / ${totalCount}{/110-fg}`;
+  messagesSearchBox.setContent(` ${queryDisplay}    {67-fg}│{/67-fg}    ${rightStat}`);
 }
 
 function renderMessagesFeed() {
   const isFeedFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'feed';
-  messagesFeedBox.style.border.fg = isFeedFocused ? COLOR_ORANGE : COLOR_DARK_GRAY;
+  messagesFeedBox.style.border.fg = isFeedFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
   messagesFeedBox.setLabel(' [ SPRÁVY ] ');
 
   const boxWidth = messagesFeedBox.width && messagesFeedBox.width > 45
@@ -2132,7 +2137,7 @@ function renderMessagesFeed() {
       const leftDash = '─'.repeat(4);
       const rightDash = '─'.repeat(Math.max(4, lineTotal - 4));
 
-      out.push(` {240-fg}${leftDash}{/240-fg}{236-bg}{white-fg}{bold}${labelBlock}{/bold}{/white-fg}{/236-bg}{240-fg}${rightDash}{/240-fg}`);
+      out.push(` {67-fg}${leftDash}{/67-fg}{24-bg}{153-fg}{bold}${labelBlock}{/bold}{/153-fg}{/24-bg}{67-fg}${rightDash}{/67-fg}`);
       out.push('');
     }
 
@@ -2144,27 +2149,26 @@ function renderMessagesFeed() {
     const subjPart = n.subject ? `  ·  ${n.subject}` : '';
     const authorPart = n.author ? `  ·  ${n.author}` : '';
     const duePart = n.due_date ? `  ·  Termín: ${n.due_date}` : '';
-    const headerPlain = ` ${timeStr}  ${badgeStr}${subjPart}${authorPart}${duePart}`;
 
-    out.push(` {240-fg}┌${'─'.repeat(cardW)}┐{/240-fg}`);
+    out.push(` {67-fg}┌${'─'.repeat(cardW)}┐{/67-fg}`);
     out.push(
-      ` {240-fg}│{/240-fg}{bold}{250-fg}${padRawLine(headerPlain, cardW)}{/250-fg}{/bold}{240-fg}│{/240-fg}`
+      ` {67-fg}│{/67-fg} {110-fg}${timeStr}{/110-fg}  {153-fg}{bold}${badgeStr}{/bold}{/153-fg}${subjPart ? '{white-fg}' + subjPart + '{/white-fg}' : ''}${authorPart ? '{250-fg}' + authorPart + '{/250-fg}' : ''}${duePart ? '{117-fg}' + duePart + '{/117-fg}' : ''}`
     );
-    out.push(` {240-fg}├${'─'.repeat(cardW)}┤{/240-fg}`);
+    out.push(` {67-fg}├${'─'.repeat(cardW)}┤{/67-fg}`);
 
     // Wrapped Body Lines with breathing room
     const bodyLines = wrapTextToLines(n.text || '-', cardW - 4);
     bodyLines.forEach((bLine) => {
-      out.push(` {240-fg}│{/240-fg}{white-fg}  ${padRawLine(bLine, cardW - 2)}{/white-fg}{240-fg}│{/240-fg}`);
+      out.push(` {67-fg}│{/67-fg}{white-fg}  ${padRawLine(bLine, cardW - 2)}{/white-fg}{67-fg}│{/67-fg}`);
     });
 
     // Optional Attachments line inside card
     if (Array.isArray(n.attachments) && n.attachments.length > 0) {
       const attStr = `  Príloha: ${n.attachments.join(', ')}`;
-      out.push(` {240-fg}│{/240-fg}{244-fg}${padRawLine(attStr, cardW)}{/244-fg}{240-fg}│{/240-fg}`);
+      out.push(` {67-fg}│{/67-fg}{110-fg}${padRawLine(attStr, cardW)}{/110-fg}{67-fg}│{/67-fg}`);
     }
 
-    out.push(` {240-fg}└${'─'.repeat(cardW)}┘{/240-fg}`);
+    out.push(` {67-fg}└${'─'.repeat(cardW)}┘{/67-fg}`);
     out.push('');
   });
 
@@ -2182,7 +2186,7 @@ function updateWidgets() {
   updateFooter();
   updateMonitorFocusStyles();
 
-  // 1. Line Graph (Monochrome white line)
+  // 1. Line Graph (Light Cyan / Blue line)
   const rawTrend = dashboardData.trend || { x: [], y: [] };
   if (rawTrend.x && rawTrend.x.length > 0) {
     let tx = rawTrend.x;
@@ -2198,12 +2202,12 @@ function updateWidgets() {
         title: 'GPA',
         x: tx,
         y: ty,
-        style: { line: 'white' },
+        style: { line: 'cyan' },
       },
     ]);
   }
 
-  // 2. Monochrome Grade Distribution Box
+  // 2. Marks Distribution Box (Soft Light-Blue bars + Slate/Gray details)
   const distData = (dashboardData.distribution && dashboardData.distribution.data) || [0, 0, 0, 0, 0];
   const distLabels = ['Výborný', 'Chválitebný', 'Dobrý', 'Dostatočný', 'Nedostatočný'];
   const maxCount = Math.max(...distData, 1);
@@ -2219,22 +2223,22 @@ function updateWidgets() {
     const paddedBar = barStr.padEnd(23, ' ');
     const countStr = String(count).padStart(2, ' ');
     const pctStr = `(${pct}%)`.padStart(7, ' ');
-    distLines.push(` {250-fg}${gradeNum}  ${label}{/250-fg} {white-fg}${paddedBar}{/white-fg} {bold}{white-fg}${countStr}{/white-fg}{/bold}  {244-fg}${pctStr}{/244-fg}`);
+    distLines.push(` {250-fg}${gradeNum}  ${label}{/250-fg} {153-fg}${paddedBar}{/153-fg} {bold}{white-fg}${countStr}{/white-fg}{/bold}  {244-fg}${pctStr}{/244-fg}`);
   });
   const passCount = distData[0] + distData[1] + distData[2] + distData[3];
   const passRate = totalMarks > 0 ? ((passCount / totalMarks) * 100).toFixed(1) : '0.0';
-  distLines.push(` {244-fg}SPOLU:{/244-fg} {white-fg}${totalMarks}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}PRIEMER:{/244-fg} {white-fg}{bold}${dashboardData.gpa || '-'}{/bold}{/white-fg}  {240-fg}│{/240-fg}  {244-fg}ÚSPEŠNOSŤ:{/244-fg} {250-fg}${passRate}%{/250-fg}`);
+  distLines.push(` {110-fg}SPOLU:{/110-fg} {white-fg}${totalMarks}{/white-fg}  {67-fg}│{/67-fg}  {110-fg}PRIEMER:{/110-fg} {153-fg}{bold}${dashboardData.gpa || '-'}{/bold}{/153-fg}  {67-fg}│{/67-fg}  {110-fg}ÚSPEŠNOSŤ:{/110-fg} {250-fg}${passRate}%{/250-fg}`);
   distributionBox.setContent(distLines.join('\n'));
 
   // 3. Live Monitor Timetable & Progress Calculation
   updateLiveProgress();
 
-  // 4. Mini Lunch Box (Monochrome)
+  // 4. Mini Lunch Box (Light Blue / Slate accents)
   const lunch = dashboardData.lunches;
   if (lunch) {
     let lines = [];
-    lines.push(` {244-fg}STAV:{/244-fg} {white-fg}{bold}${lunch.status || 'OBJEDNANÉ: ' + lunch.ordered_meal}{/bold}{/white-fg}`);
-    if (lunch.serving) lines.push(` {244-fg}VÝDAJ:{/244-fg} {250-fg}${lunch.serving}{/250-fg}`);
+    lines.push(` {110-fg}STAV:{/110-fg} {153-fg}{bold}${lunch.status || 'OBJEDNANÉ: ' + lunch.ordered_meal}{/bold}{/153-fg}`);
+    if (lunch.serving) lines.push(` {110-fg}VÝDAJ:{/110-fg} {250-fg}${lunch.serving}{/250-fg}`);
     if (lunch.menus && lunch.menus.length > 0) {
       lunch.menus.slice(0, 3).forEach((m) => {
         const numStr = m.number ? `[${m.number}] ` : '';
