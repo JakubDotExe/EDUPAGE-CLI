@@ -1793,6 +1793,8 @@ def export_dashboard_json(edupage: Edupage) -> dict:
         "week_timetable": {},
         "regular_week_timetable": {},
         "lunches": None,
+        "lunches_week": [],
+        "teachers_directory": [],
         "tasks": [],
         "notifications": [],
         "all_grades": [],
@@ -2162,28 +2164,97 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
-    # 4. Meals / Lunches
+    # 4. Meals / Lunches (Week schedule + today)
     try:
-        meals = edupage.get_meals(date.today())
-        if meals and meals.lunch:
-            l = meals.lunch
+        t_today = date.today()
+        curr_monday = t_today - timedelta(days=t_today.weekday())
+        week_dates = []
+        # Current school week (Mon-Fri)
+        for offset in range(5):
+            week_dates.append(curr_monday + timedelta(days=offset))
+        # Next school week (Mon-Fri)
+        for offset in range(5):
+            week_dates.append(curr_monday + timedelta(days=7 + offset))
+
+        lunches_week = []
+        day_names_sk = ["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"]
+        day_shorts_sk = ["PO", "UT", "ST", "ŠT", "PI", "SO", "NE"]
+
+        for d in week_dates:
+            try:
+                m_obj = edupage.get_meals(d)
+                l = m_obj.lunch if m_obj else None
+            except Exception:
+                m_obj = None
+                l = None
+
             menus_list = []
-            if l.menus:
+            if l and l.menus:
                 for m in l.menus:
+                    q_avg = None
+                    if m.rating and hasattr(m.rating, "quality_average"):
+                        q_avg = m.rating.quality_average
                     menus_list.append({
-                        "number": m.number,
-                        "name": m.name,
+                        "number": m.number or "-",
+                        "name": m.name or "-",
                         "allergens": m.allergens or "",
                         "weight": m.weight or "",
-                        "selected": (l.ordered_meal == m.number),
+                        "selected": (l.ordered_meal == m.number) if l.ordered_meal else False,
+                        "rating_avg": q_avg,
                     })
-            data["lunches"] = {
-                "title": l.title,
-                "ordered_meal": l.ordered_meal,
-                "status": f"ORDERED: {l.ordered_meal}" if l.ordered_meal else "NOT ORDERED",
-                "serving": f"{l.served_from.strftime('%H:%M')} - {l.served_to.strftime('%H:%M')}" if (l.served_from and l.served_to) else "-",
+
+            is_today = (d == t_today)
+            is_past = (d < t_today)
+            order_status = "NEVARÍ SA"
+            if l:
+                if l.ordered_meal:
+                    order_status = f"OBJEDNANÉ: Menu {l.ordered_meal}"
+                else:
+                    order_status = "ODHLÁSENÉ / NEOBJEDNANÉ"
+
+            day_item = {
+                "date": d.strftime("%Y-%m-%d"),
+                "day_name": day_names_sk[d.weekday()],
+                "day_short": day_shorts_sk[d.weekday()],
+                "date_formatted": d.strftime("%d.%m.%Y"),
+                "date_short": d.strftime("%d.%m."),
+                "is_today": is_today,
+                "is_past": is_past,
+                "has_meal": (l is not None),
+                "title": l.title if l else "Nevarí sa / Žiadny záznam",
+                "ordered_meal": l.ordered_meal if l else None,
+                "status": order_status,
+                "serving": f"{l.served_from.strftime('%H:%M')} - {l.served_to.strftime('%H:%M')}" if (l and l.served_from and l.served_to) else "-",
+                "can_be_changed_until": str(l.can_be_changed_until) if (l and l.can_be_changed_until) else None,
+                "boarder_id": getattr(l, "_Meal__boarder_id", None) if l else None,
                 "menus": menus_list,
             }
+            lunches_week.append(day_item)
+
+            if is_today and l:
+                data["lunches"] = {
+                    "title": l.title,
+                    "ordered_meal": l.ordered_meal,
+                    "status": order_status,
+                    "serving": day_item["serving"],
+                    "menus": menus_list,
+                }
+
+        data["lunches_week"] = lunches_week
+
+        # If today is weekend or no lunch today, pick first upcoming school day with lunch for monitor card
+        if not data.get("lunches") and lunches_week:
+            first_valid = next((x for x in lunches_week if x["has_meal"] and not x["is_past"]), None)
+            if not first_valid:
+                first_valid = next((x for x in lunches_week if x["has_meal"]), None)
+            if first_valid:
+                data["lunches"] = {
+                    "title": first_valid["title"],
+                    "ordered_meal": first_valid["ordered_meal"],
+                    "status": first_valid["status"],
+                    "serving": first_valid["serving"],
+                    "menus": first_valid["menus"],
+                }
     except Exception:
         pass
 
@@ -2427,6 +2498,21 @@ def export_dashboard_json(edupage: Edupage) -> dict:
     except Exception:
         pass
 
+    # 7. Teachers Directory (for recipient autocompletion)
+    try:
+        teachers_list = []
+        raw_teachers = edupage.get_teachers() or []
+        for t in raw_teachers:
+            teachers_list.append({
+                "id": t.get_id(),
+                "name": t.name,
+                "classroom": t.classroom_name or "-",
+            })
+        teachers_list.sort(key=lambda x: x["name"])
+        data["teachers_directory"] = teachers_list
+    except Exception:
+        data["teachers_directory"] = []
+
     return data
 
 
@@ -2643,6 +2729,26 @@ def main():
     # Command: dump-json
     subparsers.add_parser("dump-json", help="Export aggregated data as JSON.")
 
+    # Command: lunch-signoff
+    p_lsignoff = subparsers.add_parser("lunch-signoff", help="Sign off / cancel lunch for given date.")
+    p_lsignoff.add_argument("--date", required=True, type=str, help="Date in YYYY-MM-DD format.")
+
+    # Command: lunch-order
+    p_lorder = subparsers.add_parser("lunch-order", help="Re-order / choose lunch for given date.")
+    p_lorder.add_argument("--date", required=True, type=str, help="Date in YYYY-MM-DD format.")
+    p_lorder.add_argument("--menu", default="A", type=str, help="Menu letter or number (e.g. A, 1).")
+
+    # Command: lunch-rate
+    p_lrate = subparsers.add_parser("lunch-rate", help="Submit rating for meal on given date.")
+    p_lrate.add_argument("--date", required=True, type=str, help="Date in YYYY-MM-DD format.")
+    p_lrate.add_argument("--quality", required=True, type=int, choices=[1, 2, 3, 4, 5], help="Quality rating (1-5).")
+    p_lrate.add_argument("--quantity", required=True, type=int, choices=[1, 2, 3, 4, 5], help="Quantity rating (1-5).")
+
+    # Command: send-message
+    p_smsg = subparsers.add_parser("send-message", help="Send a message to recipient.")
+    p_smsg.add_argument("--recipient", required=True, type=str, help="Recipient EduPage ID.")
+    p_smsg.add_argument("--body", required=True, type=str, help="Message body text.")
+
     args = parser.parse_args()
 
     use_color = (not args.no_color and not os.getenv("NO_COLOR") and sys.stdout.isatty())
@@ -2699,6 +2805,75 @@ def main():
             view_ringing_times(edupage, use_color=use_color)
         elif args.command == "teachers":
             view_teachers_directory(edupage, query=args.query, use_color=use_color)
+        elif args.command == "lunch-signoff":
+            try:
+                t_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+                meals = edupage.get_meals(t_date)
+                if not meals or not meals.lunch:
+                    print(json.dumps({"success": False, "error": f"Na deň {args.date} nebol nájdený žiadny obed."}))
+                    sys.exit(1)
+                meals.lunch.sign_off(edupage)
+                print(json.dumps({"success": True, "message": f"Obed na {args.date} bol úspešne odhlásený.", "date": args.date}))
+                sys.exit(0)
+            except Exception as e:
+                print(json.dumps({"success": False, "error": str(e)}))
+                sys.exit(1)
+        elif args.command == "lunch-order":
+            try:
+                t_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+                meals = edupage.get_meals(t_date)
+                if not meals or not meals.lunch:
+                    print(json.dumps({"success": False, "error": f"Na deň {args.date} nebol nájdený žiadny obed."}))
+                    sys.exit(1)
+                ch_idx = 1
+                if args.menu.isdigit():
+                    ch_idx = int(args.menu)
+                elif args.menu.upper() in "ABCDEFGH":
+                    ch_idx = ord(args.menu.upper()) - ord('A') + 1
+                meals.lunch.choose(edupage, ch_idx)
+                print(json.dumps({"success": True, "message": f"Menu {args.menu.upper()} na {args.date} bolo úspešne prihlásené.", "date": args.date, "menu": args.menu.upper()}))
+                sys.exit(0)
+            except Exception as e:
+                print(json.dumps({"success": False, "error": str(e)}))
+                sys.exit(1)
+        elif args.command == "lunch-rate":
+            try:
+                t_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+                meals = edupage.get_meals(t_date)
+                boarder_id = None
+                if meals and meals.lunch and hasattr(meals.lunch, "_Meal__boarder_id"):
+                    boarder_id = meals.lunch._Meal__boarder_id
+                if not boarder_id:
+                    print(json.dumps({"success": False, "error": "Nepodarilo sa nájsť ID stravníka pre hodnotenie."}))
+                    sys.exit(1)
+                req_url = f"https://{edupage.subdomain}.edupage.org/menu/"
+                rate_data = {
+                    "akcia": "ulozHodnotenia",
+                    "stravnikid": str(boarder_id),
+                    "mysqlDate": args.date,
+                    "jedlo_dna": "2",
+                    "kvalita": str(args.quality),
+                    "mnozstvo": str(args.quantity),
+                }
+                res = edupage.session.post(req_url, data=rate_data)
+                parsed = json.loads(res.content.decode())
+                err = parsed.get("error")
+                if err is not None and err != "":
+                    print(json.dumps({"success": False, "error": f"Hodnotenie zlyhalo: {err}"}))
+                    sys.exit(1)
+                print(json.dumps({"success": True, "message": f"Hodnotenie obeda na {args.date} (Kvalita: {args.quality}★, Množstvo: {args.quantity}★) bolo úspešne odoslané."}))
+                sys.exit(0)
+            except Exception as e:
+                print(json.dumps({"success": False, "error": str(e)}))
+                sys.exit(1)
+        elif args.command == "send-message":
+            try:
+                msg_id = edupage.send_message([args.recipient], args.body)
+                print(json.dumps({"success": True, "message": "Správa bola úspešne odoslaná.", "id": msg_id}))
+                sys.exit(0)
+            except Exception as e:
+                print(json.dumps({"success": False, "error": str(e)}))
+                sys.exit(1)
         else:
             interactive_dashboard(edupage, use_color=use_color)
 

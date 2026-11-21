@@ -118,6 +118,30 @@ const TAB_LABELS = [
 let activeTabIndex = 0;
 let navFocus = 'topbar'; // 'topbar' | 'card'
 let msgSubFocus = 'feed'; // 'feed' | 'filters' | 'search' (for Tab 4: SPRÁVY)
+let lunchDayCursor = 0;
+let lunchSubFocus = 'sidebar'; // 'sidebar' | 'button' | 'rating'
+let lunchRatingQuality = 5;
+let lunchRatingQuantity = 5;
+let lunchRatingField = 'quality'; // 'quality' | 'quantity'
+let lunchActionFeedback = null;
+let lunchActionTimer = null;
+
+// In-CLI Modal Overlays State
+let activeModal = null; // null | 'confirm_lunch' | 'compose_message'
+let confirmModalPendingDay = null;
+let confirmModalPendingAction = 'signoff'; // 'signoff' | 'order'
+let confirmModalExecuting = false;
+let confirmModalFeedback = null;
+
+// Tab 4 Compose Message State
+let composeStep = 'recipient'; // 'recipient' | 'body'
+let composeSearchQuery = '';
+let composeTeacherCursor = 0;
+let composeSelectedTeacher = null;
+let composeBody = '';
+let composeFeedback = null;
+let composeExecuting = false;
+
 let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
 
@@ -477,10 +501,89 @@ const messagesFeedBox = blessed.box({
 });
 
 // ==============================================================================
-// TAB 5: EMPTY PLACEHOLDER
+// TAB 5: OBEDY (Cafeteria Lunches, Left Day Switching & Cancel / Rating Controls)
 // ==============================================================================
 
-const viewLunches = createEmptyTabPlaceholder('5: OBEDY');
+const viewLunches = blessed.box({
+  parent: contentArea,
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: '100%',
+  hidden: true,
+});
+
+const lunchesSidebar = blessed.box({
+  parent: viewLunches,
+  top: 0,
+  left: 0,
+  width: SIDEBAR_WIDTH,
+  height: '100%',
+  tags: true,
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
+  label: ' [ DNI ] ',
+  style: {
+    border: { fg: COLOR_STEEL_BLUE },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+const lunchesMainBox = blessed.box({
+  parent: viewLunches,
+  top: 0,
+  left: SIDEBAR_WIDTH,
+  width: `100%-${SIDEBAR_WIDTH}`,
+  height: '100%',
+  tags: true,
+  scrollable: true,
+  alwaysScroll: true,
+  border: { type: 'line', fg: COLOR_STEEL_BLUE },
+  label: ' [ OBED ] ',
+  style: {
+    border: { fg: COLOR_STEEL_BLUE },
+    fg: 'white',
+    bg: 'black',
+  },
+});
+
+// ==============================================================================
+// IN-CLI POPUP MODALS: CONFIRM LUNCH SIGN-OFF & COMPOSE MESSAGE
+// ==============================================================================
+
+const confirmLunchModal = blessed.box({
+  parent: screen,
+  top: 'center',
+  left: 'center',
+  width: 66,
+  height: 14,
+  tags: true,
+  border: { type: 'line', fg: 196 },
+  style: {
+    border: { fg: 196 },
+    bg: 'black',
+    fg: 'white',
+  },
+  hidden: true,
+  shadow: true,
+});
+
+const composeModal = blessed.box({
+  parent: screen,
+  top: 'center',
+  left: 'center',
+  width: 76,
+  height: 22,
+  tags: true,
+  border: { type: 'line', fg: COLOR_ORANGE },
+  style: {
+    border: { fg: COLOR_ORANGE },
+    bg: 'black',
+    fg: 'white',
+  },
+  hidden: true,
+  shadow: true,
+});
 
 // View Containers & Focusable Widgets Registry
 const VIEW_CONTAINERS = [viewMonitor, viewTimetable, viewGrades, viewMessages, viewLunches];
@@ -499,7 +602,7 @@ let activeWidgetIndex = 0;
 // ==============================================================================
 
 function hasCardSidebar(tabIdx = activeTabIndex) {
-  return tabIdx === 1 || tabIdx === 2 || tabIdx === 3;
+  return tabIdx === 1 || tabIdx === 2 || tabIdx === 3 || tabIdx === 4;
 }
 
 function updateMonitorFocusStyles() {
@@ -521,10 +624,33 @@ function updateMonitorFocusStyles() {
 }
 
 function updateFooter() {
+  if (activeModal === 'confirm_lunch') {
+    footerBox.setContent(' {153-fg}[Enter / y]{/153-fg} {bold}Potvrdiť akciu{/bold}  {67-fg}│{/67-fg}  {153-fg}[Esc / n]{/153-fg} {244-fg}Zrušiť dialóg{/244-fg}');
+    return;
+  }
+  if (activeModal === 'compose_message') {
+    footerBox.setContent(' {153-fg}[↑/↓]{/153-fg} {244-fg}Učiteľ{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Enter]{/153-fg} {bold}Výber / Odoslať{/bold}  {67-fg}│{/67-fg}  {153-fg}[Tab]{/153-fg} {244-fg}Prepínať polia{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Esc]{/153-fg} {244-fg}Zrušiť{/244-fg}');
+    return;
+  }
+
   if (activeTabIndex === 3 && navFocus === 'card') {
     footerBox.setContent(
-      ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[↑/↓]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[←/→/Tab]{/153-fg} {244-fg}Panel{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Space]{/153-fg} {244-fg}Filter{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[/]{/153-fg} {244-fg}Hľadať{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
+      ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[m / c]{/153-fg} {bold}{153-fg}+ Nová správa{/153-fg}{/bold}  {67-fg}│{/67-fg}  {153-fg}[↑/↓]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[←/→/Tab]{/153-fg} {244-fg}Panel{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Space]{/153-fg} {244-fg}Filter{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[/]{/153-fg} {244-fg}Hľadať{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
     );
+  } else if (activeTabIndex === 4 && navFocus === 'card') {
+    if (lunchSubFocus === 'sidebar') {
+      footerBox.setContent(
+        ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[↑/↓]{/153-fg} {244-fg}Výber dňa{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[→ / Tab]{/153-fg} {bold}{153-fg}Prejsť na obed{/153-fg}{/bold}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
+      );
+    } else if (lunchSubFocus === 'button') {
+      footerBox.setContent(
+        ' {153-fg}[Enter]{/153-fg} {bold}{196-fg}Odhlásiť / Prihlásiť obed{/196-fg}{/bold}  {67-fg}│{/67-fg}  {153-fg}[↓]{/153-fg} {244-fg}Hodnotiť jedlo{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[←]{/153-fg} {244-fg}Dni{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
+      );
+    } else {
+      footerBox.setContent(
+        ' {153-fg}[1-5]{/153-fg} {244-fg}Hviezdičky{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Tab]{/153-fg} {244-fg}Kvalita / Porcia{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Enter]{/153-fg} {bold}{153-fg}Odoslať hodnotenie{/153-fg}{/bold}  {67-fg}│{/67-fg}  {153-fg}[↑]{/153-fg} {244-fg}Tlačidlo{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[←]{/153-fg} {244-fg}Dni{/244-fg}'
+      );
+    }
   } else {
     footerBox.setContent(
       ' {153-fg}[1-5]{/153-fg} {244-fg}Karty{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Šípky]{/153-fg} {244-fg}Pohyb{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[Enter]{/153-fg} {244-fg}Výber{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[r]{/153-fg} {244-fg}Obnoviť{/244-fg}  {67-fg}│{/67-fg}  {153-fg}[q]{/153-fg} {244-fg}Koniec{/244-fg}'
@@ -541,6 +667,8 @@ function switchTab(index) {
   navFocus = 'topbar';
   if (activeTabIndex === 3) {
     msgSubFocus = 'feed';
+  } else if (activeTabIndex === 4) {
+    lunchSubFocus = 'sidebar';
   }
 
   VIEW_CONTAINERS.forEach((c, idx) => {
@@ -564,6 +692,9 @@ function switchTab(index) {
   } else if (activeTabIndex === 3) {
     renderMessagesCard();
     messagesFeedBox.focus();
+  } else if (activeTabIndex === 4) {
+    renderLunchesCard();
+    lunchesSidebar.focus();
   } else {
     const currentTabWidgets = TAB_WIDGETS[activeTabIndex];
     if (currentTabWidgets && currentTabWidgets.length > 0) {
@@ -1983,15 +2114,19 @@ function wrapTextToLines(text, maxLineWidth) {
 
 function toggleMessageFilterAtCursor() {
   if (msgFilterCursor === 0) {
+    openComposeMessageModal();
+    return;
+  }
+  if (msgFilterCursor === 1) {
     const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
     const nextState = !allChecked;
     MESSAGE_CATEGORIES.forEach((c) => {
       msgFilterChecked[c.key] = nextState;
     });
-  } else if (msgFilterCursor >= 1 && msgFilterCursor <= MESSAGE_CATEGORIES.length) {
-    const cat = MESSAGE_CATEGORIES[msgFilterCursor - 1];
+  } else if (msgFilterCursor >= 2 && msgFilterCursor <= MESSAGE_CATEGORIES.length + 1) {
+    const cat = MESSAGE_CATEGORIES[msgFilterCursor - 2];
     msgFilterChecked[cat.key] = !msgFilterChecked[cat.key];
-  } else if (msgFilterCursor === MESSAGE_CATEGORIES.length + 1) {
+  } else if (msgFilterCursor === MESSAGE_CATEGORIES.length + 2) {
     msgSearchQuery = '';
     MESSAGE_CATEGORIES.forEach((c) => {
       msgFilterChecked[c.key] = true;
@@ -2005,7 +2140,7 @@ function toggleMessageFilterAtCursor() {
 function renderMessagesSidebar() {
   const isFilterFocused = activeTabIndex === 3 && navFocus === 'card' && msgSubFocus === 'filters';
   messagesSidebar.style.border.fg = isFilterFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
-  messagesSidebar.setLabel(' [ FILTRE ] ');
+  messagesSidebar.setLabel(' [ SPRÁVY & FILTRE ] ');
 
   const all = getAllNotificationsList();
   const filtered = getFilteredNotifications();
@@ -2021,6 +2156,17 @@ function renderMessagesSidebar() {
   const allChecked = MESSAGE_CATEGORIES.every((c) => msgFilterChecked[c.key]);
 
   const lines = [];
+
+  // Row 0: COMPOSE MESSAGE BUTTON
+  const composeBtnText = ' ✉ + POSLAŤ SPRÁVU [m] ';
+  const composeFocused = isFilterFocused && msgFilterCursor === 0;
+  if (composeFocused) {
+    lines.push(`{208-bg}{black-fg}{bold}${padRawLine(composeBtnText, 32)}{/bold}{/black-fg}{/208-bg}`);
+  } else {
+    lines.push(`{117-bg}{black-fg}{bold}${padRawLine(composeBtnText, 32)}{/bold}{/black-fg}{/117-bg}`);
+  }
+  lines.push('');
+
   lines.push(' {110-fg}ZOBRAZENÉ{/110-fg}');
   lines.push(` {24-bg}{153-fg}{bold}${padRawLine(` ● ${filtered.length} / ${all.length} SPRÁV`, 30)}{/bold}{/153-fg}{/24-bg}`);
   if (msgSearchQuery.trim()) {
@@ -2030,22 +2176,22 @@ function renderMessagesSidebar() {
   lines.push(' {110-fg}KATEGÓRIE{/110-fg}');
   lines.push('');
 
-  // Row 0: VŠETKY TYPY
-  const row0Focused = isFilterFocused && msgFilterCursor === 0;
+  // Row 1: VŠETKY TYPY
+  const row1Focused = isFilterFocused && msgFilterCursor === 1;
   const markAll = allChecked ? '[x]' : '[ ]';
-  const row0Text = ` ${row0Focused ? '▸' : ' '} ${markAll} VŠETKY (${all.length})`;
-  if (row0Focused) {
-    lines.push(`{208-bg}{black-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/black-fg}{/208-bg}`);
+  const row1Text = ` ${row1Focused ? '▸' : ' '} ${markAll} VŠETKY (${all.length})`;
+  if (row1Focused) {
+    lines.push(`{208-bg}{black-fg}{bold}${padRawLine(row1Text, 32)}{/bold}{/black-fg}{/208-bg}`);
   } else if (allChecked) {
-    lines.push(`{153-fg}{bold}${padRawLine(row0Text, 32)}{/bold}{/153-fg}`);
+    lines.push(`{153-fg}{bold}${padRawLine(row1Text, 32)}{/bold}{/153-fg}`);
   } else {
-    lines.push(`{244-fg}${padRawLine(row0Text, 32)}{/244-fg}`);
+    lines.push(`{244-fg}${padRawLine(row1Text, 32)}{/244-fg}`);
   }
   lines.push('');
 
-  // Rows 1..6: Individual Category Checkboxes
+  // Rows 2..7: Individual Category Checkboxes
   MESSAGE_CATEGORIES.forEach((cat, idx) => {
-    const itemIdx = idx + 1;
+    const itemIdx = idx + 2;
     const isHere = isFilterFocused && msgFilterCursor === itemIdx;
     const checked = !!msgFilterChecked[cat.key];
     const boxMark = checked ? '[x]' : '[ ]';
@@ -2063,8 +2209,8 @@ function renderMessagesSidebar() {
     lines.push('');
   });
 
-  // Row 7: Reset Filters & Search
-  const resetIdx = MESSAGE_CATEGORIES.length + 1;
+  // Row 8: Reset Filters & Search
+  const resetIdx = MESSAGE_CATEGORIES.length + 2;
   const resetFocused = isFilterFocused && msgFilterCursor === resetIdx;
   const resetText = ` ${resetFocused ? '▸' : ' '} [↺] Resetovať filtre`;
   if (resetFocused) {
@@ -2094,7 +2240,7 @@ function renderMessagesSearchBox() {
   }
 
   const rightStat = `{110-fg}${filteredCount} / ${totalCount}{/110-fg}`;
-  messagesSearchBox.setContent(` ${queryDisplay}    {67-fg}│{/67-fg}    ${rightStat}`);
+  messagesSearchBox.setContent(` ${queryDisplay}    {67-fg}│{/67-fg}    {153-fg}[m]{/153-fg} {117-fg}+Poslať správu{/117-fg}    {67-fg}│{/67-fg}    ${rightStat}`);
 }
 
 function renderMessagesFeed() {
@@ -2271,6 +2417,13 @@ function updateWidgets() {
   // 8. Tab 4 Messages View (Left Checkbox Filters + Top Search + Day-Divided Feed)
   renderMessagesCard();
 
+  // 9. Tab 5 Lunches View (Days Sidebar + Menu Table + Cancel & Rating)
+  renderLunchesCard();
+
+  // 10. Modals (if active)
+  if (activeModal === 'confirm_lunch') renderConfirmLunchModal();
+  else if (activeModal === 'compose_message') renderComposeModal();
+
   screen.render();
 }
 
@@ -2361,11 +2514,668 @@ function getInitialState() {
     week_timetable: {},
     regular_week_timetable: {},
     lunches: null,
+    lunches_week: [],
+    teachers_directory: [],
     tasks: [],
     notifications: [],
     all_grades: [],
     commendations: [],
   };
+}
+
+// ==============================================================================
+// Python Subcommand Action Runner (For Sign-off, Rating, Send Message)
+// ==============================================================================
+
+function runPythonAction(subcommandArgs, callback) {
+  const isWin = process.platform === 'win32';
+  const venvPy = path.join(__dirname, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
+  const pythonCmd = fs.existsSync(venvPy) ? venvPy : (isWin ? 'python' : 'python3');
+
+  const proc = spawn(pythonCmd, ['cli.py', ...subcommandArgs], {
+    cwd: __dirname,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stdout = '';
+  let stderr = '';
+  proc.stdout.on('data', (d) => { stdout += d.toString(); });
+  proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+  proc.on('close', (code) => {
+    let result = null;
+    try {
+      result = JSON.parse(stdout.trim());
+    } catch (e) {
+      result = { success: code === 0, message: stdout.trim() || stderr.trim() };
+    }
+    if (callback) callback(code === 0, result);
+  });
+}
+
+// ==============================================================================
+// TAB 5 (OBEDY): Cafeteria Lunches, Day Switching, Cancel Button & Meal Rating
+// ==============================================================================
+
+function getLunchesDays() {
+  if (Array.isArray(dashboardData.lunches_week) && dashboardData.lunches_week.length > 0) {
+    return dashboardData.lunches_week;
+  }
+  const today = new Date();
+  const dayNames = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok'];
+  const dayShorts = ['PO', 'UT', 'ST', 'ŠT', 'PI'];
+  const res = [];
+  const currDay = today.getDay();
+  const mondayOffset = currDay === 0 ? -6 : 1 - currDay;
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + mondayOffset + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dFmt = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+    const dShort = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
+    res.push({
+      date: iso,
+      day_name: dayNames[i],
+      day_short: dayShorts[i],
+      date_formatted: dFmt,
+      date_short: dShort,
+      is_today: d.toDateString() === today.toDateString(),
+      is_past: d < today,
+      has_meal: true,
+      title: 'Polievka šutolica, Cestoviny bez posýpky, Posýpka maková na cestoviny',
+      ordered_meal: 'A',
+      status: 'OBJEDNANÉ: Menu A',
+      serving: '11:00 - 14:00',
+      can_be_changed_until: null,
+      menus: [
+        { number: '1', name: 'Polievka šutolica', allergens: '1', weight: '250', selected: false },
+        { number: '2', name: 'Cestoviny bez posýpky', allergens: '1, 3', weight: '200', selected: true },
+        { number: '3', name: 'Posýpka maková na cestoviny', allergens: '', weight: '60', selected: true },
+        { number: '4', name: 'Prírodná ovocná šťava 100%', allergens: '', weight: '200', selected: false },
+      ],
+    });
+  }
+  return res;
+}
+
+function renderLunchesSidebar() {
+  const isSidebarFocused = activeTabIndex === 4 && navFocus === 'card' && lunchSubFocus === 'sidebar';
+  lunchesSidebar.style.border.fg = isSidebarFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
+  lunchesSidebar.setLabel(' [ DNI V TÝŽDNI ] ');
+
+  const days = getLunchesDays();
+  if (lunchDayCursor >= days.length) lunchDayCursor = Math.max(0, days.length - 1);
+
+  const lines = [];
+  lines.push(' {bold}{153-fg}VÝBER DŇA{/153-fg}{/bold}');
+  lines.push(' {67-fg}──────────────────────────────{/67-fg}');
+  lines.push('');
+
+  days.forEach((day, idx) => {
+    if (days.length === 10) {
+      if (idx === 0) {
+        lines.push(' {110-fg}{bold}► TENTO TÝŽDEŇ{/bold}{/110-fg}');
+        lines.push('');
+      } else if (idx === 5) {
+        lines.push('');
+        lines.push(' {110-fg}{bold}► BUDÚCI TÝŽDEŇ{/bold}{/110-fg}');
+        lines.push('');
+      }
+    }
+
+    const isCursorHere = isSidebarFocused && idx === lunchDayCursor;
+    const isSelected = idx === lunchDayCursor;
+    const todayTag = day.is_today ? ' [DNES]' : '';
+    const namePart = `${day.day_name} ${day.date_short}${todayTag}`;
+
+    let statusBadge = '';
+    if (day.ordered_meal) {
+      statusBadge = `{green-fg}● Obj (${day.ordered_meal}){/green-fg}`;
+    } else if (day.has_meal) {
+      statusBadge = `{red-fg}○ Odhlásené{/red-fg}`;
+    } else {
+      statusBadge = `{244-fg}- Nevarí sa{/244-fg}`;
+    }
+
+    const leftPrefix = isCursorHere ? '▸ ' : (isSelected ? '• ' : '  ');
+    const rawRow = `${leftPrefix}${fitPlain(namePart, 17).padEnd(17, ' ')} ${day.ordered_meal ? '[Obj]' : (day.has_meal ? '[Odh]' : '[-] ')}`;
+
+    if (isCursorHere) {
+      lines.push(`{208-bg}{black-fg}{bold}${padRawLine(rawRow, 32)}{/bold}{/black-fg}{/208-bg}`);
+    } else if (isSelected) {
+      lines.push(`{117-fg}{bold}  ${namePart}{/bold}{/117-fg}`);
+      lines.push(`     ${statusBadge}`);
+    } else {
+      lines.push(`{250-fg}  ${namePart}{/250-fg}`);
+      lines.push(`     ${statusBadge}`);
+    }
+    lines.push('');
+  });
+
+  lines.push(' {67-fg}──────────────────────────────{/67-fg}');
+  lines.push(' {244-fg}[↑/↓] Výber dňa{/244-fg}');
+  lines.push(' {244-fg}[→ / Tab] Prejsť na obed{/244-fg}');
+
+  lunchesSidebar.setContent(lines.join('\n'));
+}
+
+function renderLunchesMain() {
+  const days = getLunchesDays();
+  const day = days[lunchDayCursor] || days[0];
+
+  const isBtnFocused = activeTabIndex === 4 && navFocus === 'card' && lunchSubFocus === 'button';
+  const isRatingFocused = activeTabIndex === 4 && navFocus === 'card' && lunchSubFocus === 'rating';
+  const isCardActive = activeTabIndex === 4 && navFocus === 'card';
+  const isSidebarFocused = isCardActive && lunchSubFocus === 'sidebar';
+
+  lunchesMainBox.style.border.fg = isCardActive && !isSidebarFocused ? COLOR_ORANGE : COLOR_STEEL_BLUE;
+  lunchesMainBox.setLabel(` [ JEDÁLNY LÍSTOK: ${day.day_name.toUpperCase()} ${day.date_short} ] `);
+
+  const boxW = lunchesMainBox.width && lunchesMainBox.width > 40
+    ? lunchesMainBox.width
+    : Math.max(78, screen.width - SIDEBAR_WIDTH);
+  const innerW = Math.max(72, boxW - 6);
+
+  const lines = [];
+  lines.push('');
+
+  // 1. Header Banner
+  const titleStr = `JEDÁLNY LÍSTOK: ${day.day_name.toUpperCase()} ${day.date_formatted}`;
+  lines.push(` {bold}{153-fg}${titleStr}{/153-fg}{/bold}`);
+  lines.push(
+    ` {244-fg}Výdaj obeda:{/244-fg} {153-fg}${day.serving}{/153-fg}   {67-fg}│{/67-fg}   ` +
+    `{244-fg}Stav:{/244-fg} ${day.ordered_meal ? '{green-fg}{bold}● OBJEDNANÉ (Menu ' + day.ordered_meal + '){/bold}{/green-fg}' : (day.has_meal ? '{red-fg}{bold}○ ODHLÁSENÉ{/bold}{/red-fg}' : '{244-fg}NEVARÍ SA{/244-fg}')}`
+  );
+  lines.push(` {67-fg}${'─'.repeat(innerW)}{/67-fg}`);
+  lines.push('');
+
+  // 2. ČERVENÉ TLAČIDLO NA ODHLÁSENIE (Above menu)
+  if (day.has_meal) {
+    if (day.ordered_meal) {
+      const btnText = '   [ X ODHLÁSIŤ OBED ]   ';
+      if (isBtnFocused) {
+        lines.push(` {208-bg}{black-fg}{bold} ▶▶ [ X ODHLÁSIŤ OBED ] ◀◀ {/bold}{/black-fg}{/208-bg}   {244-fg}(Stlačte Enter pre potvrdenie odhlásenia){/244-fg}`);
+      } else {
+        lines.push(` {white-fg}{196-bg}{bold}${btnText}{/bold}{/196-bg}{/white-fg}`);
+      }
+    } else {
+      const btnText = '   [ + PRIHLÁSIŤ OBED (Menu A) ]   ';
+      if (isBtnFocused) {
+        lines.push(` {208-bg}{black-fg}{bold} ▶▶ [ + PRIHLÁSIŤ OBED (Menu A) ] ◀◀ {/bold}{/black-fg}{/208-bg}   {244-fg}(Stlačte Enter pre prihlásenie){/244-fg}`);
+      } else {
+        lines.push(` {black-fg}{46-bg}{bold}${btnText}{/bold}{/46-bg}{/black-fg}`);
+      }
+    }
+  } else {
+    lines.push(' {244-fg}[ V tento deň jedáleň nevarí ]{/244-fg}');
+  }
+
+  if (lunchActionFeedback) {
+    lines.push(` ${lunchActionFeedback}`);
+  }
+  lines.push('');
+
+  // 3. MENU TABLE
+  lines.push(' {bold}{110-fg}ROZPIS JEDÁL:{/110-fg}{/bold}');
+  const colChod = 10;
+  const colGramaz = 10;
+  const colAlergeny = 14;
+  const colJedlo = Math.max(26, innerW - (colChod + colGramaz + colAlergeny + 10));
+
+  lines.push(` {67-fg}┌${'─'.repeat(colChod + 2)}┬${'─'.repeat(colJedlo + 2)}┬${'─'.repeat(colGramaz + 2)}┬${'─'.repeat(colAlergeny + 2)}┐{/67-fg}`);
+  lines.push(` {67-fg}│{/67-fg} {153-fg}CHOD${' '.repeat(colChod - 4)}{/153-fg} {67-fg}│{/67-fg} {153-fg}NÁZOV POKRMU${' '.repeat(Math.max(0, colJedlo - 12))}{/153-fg} {67-fg}│{/67-fg} {153-fg}GRAMÁŽ${' '.repeat(colGramaz - 6)}{/153-fg} {67-fg}│{/67-fg} {153-fg}ALERGÉNY${' '.repeat(colAlergeny - 8)}{/153-fg} {67-fg}│{/67-fg}`);
+  lines.push(` {67-fg}├${'─'.repeat(colChod + 2)}┼${'─'.repeat(colJedlo + 2)}┼${'─'.repeat(colGramaz + 2)}┼${'─'.repeat(colAlergeny + 2)}┤{/67-fg}`);
+
+  if (day.menus && day.menus.length > 0) {
+    day.menus.forEach((m, mIdx) => {
+      let chodName = `Chod ${mIdx + 1}`;
+      const lower = (m.name || '').toLowerCase();
+      if (lower.includes('polievka')) chodName = 'Polievka';
+      else if (lower.includes('chlieb') || lower.includes('pečivo')) chodName = 'Pečivo';
+      else if (lower.includes('stehno') || lower.includes('mäso') || lower.includes('rezeň') || lower.includes('cestoviny') || lower.includes('rizoto') || lower.includes('gulaš')) chodName = 'Hlavné';
+      else if (lower.includes('zemiak') || lower.includes('ryža') || lower.includes('posýpka')) chodName = 'Príloha';
+      else if (lower.includes('šalát') || lower.includes('uhorka') || lower.includes('kapust')) chodName = 'Šalát';
+      else if (lower.includes('voda') || lower.includes('šťava') || lower.includes('čaj') || lower.includes('nápoj')) chodName = 'Nápoj';
+      else if (lower.includes('ovocie') || lower.includes('jablko') || lower.includes('hrozno')) chodName = 'Dezert';
+
+      const chStr = fitPlain(chodName, colChod).padEnd(colChod, ' ');
+      const nameStr = fitPlain(m.name || '-', colJedlo).padEnd(colJedlo, ' ');
+      const grStr = fitPlain(m.weight ? `${m.weight}g` : '-', colGramaz).padEnd(colGramaz, ' ');
+      const alStr = fitPlain(m.allergens || '-', colAlergeny).padEnd(colAlergeny, ' ');
+
+      lines.push(` {67-fg}│{/67-fg} {244-fg}${chStr}{/244-fg} {67-fg}│{/67-fg} {white-fg}${nameStr}{/white-fg} {67-fg}│{/67-fg} {250-fg}${grStr}{/250-fg} {67-fg}│{/67-fg} {110-fg}${alStr}{/110-fg} {67-fg}│{/67-fg}`);
+    });
+  } else {
+    const rawLines = wrapTextToLines(day.title || 'Žiadne podrobnosti o jedle.', colJedlo);
+    rawLines.forEach((rl, rIdx) => {
+      const chStr = (rIdx === 0 ? 'Obed' : '').padEnd(colChod, ' ');
+      const nameStr = fitPlain(rl, colJedlo).padEnd(colJedlo, ' ');
+      const grStr = '-'.padEnd(colGramaz, ' ');
+      const alStr = '-'.padEnd(colAlergeny, ' ');
+      lines.push(` {67-fg}│{/67-fg} {244-fg}${chStr}{/244-fg} {67-fg}│{/67-fg} {white-fg}${nameStr}{/white-fg} {67-fg}│{/67-fg} {250-fg}${grStr}{/250-fg} {67-fg}│{/67-fg} {110-fg}${alStr}{/110-fg} {67-fg}│{/67-fg}`);
+    });
+  }
+  lines.push(` {67-fg}└${'─'.repeat(colChod + 2)}┴${'─'.repeat(colJedlo + 2)}┴${'─'.repeat(colGramaz + 2)}┴${'─'.repeat(colAlergeny + 2)}┘{/67-fg}`);
+  lines.push('');
+
+  // 4. HODNOTENIE JEDLA (Rating Area)
+  lines.push(' {bold}{153-fg}★ HODNOTENIE JEDLA{/153-fg}{/bold}');
+  lines.push(' {67-fg}────────────────────────────────────────────────────────────{/67-fg}');
+
+  const starRender = (val) => {
+    return [1, 2, 3, 4, 5].map((n) => (n <= val ? '{117-fg}★{/117-fg}' : '{240-fg}☆{/240-fg}')).join(' ');
+  };
+
+  const isQualFocused = isRatingFocused && lunchRatingField === 'quality';
+  const isQuanFocused = isRatingFocused && lunchRatingField === 'quantity';
+
+  const qualBtns = [1, 2, 3, 4, 5].map((n) => {
+    if (n === lunchRatingQuality) {
+      return isQualFocused ? `{208-bg}{black-fg}{bold}[ ${n}★ ]{/bold}{/black-fg}{/208-bg}` : `{153-bg}{black-fg}[ ${n}★ ]{/black-fg}{/153-bg}`;
+    }
+    return `{240-fg}[ ${n} ]{/240-fg}`;
+  }).join(' ');
+
+  const quanBtns = [1, 2, 3, 4, 5].map((n) => {
+    if (n === lunchRatingQuantity) {
+      return isQuanFocused ? `{208-bg}{black-fg}{bold}[ ${n}★ ]{/bold}{/black-fg}{/208-bg}` : `{153-bg}{black-fg}[ ${n}★ ]{/black-fg}{/153-bg}`;
+    }
+    return `{240-fg}[ ${n} ]{/240-fg}`;
+  }).join(' ');
+
+  lines.push(`  ${isQualFocused ? '{208-fg}▶{/208-fg}' : ' '} {250-fg}Kvalita jedla:{/250-fg}     ${qualBtns}   ${starRender(lunchRatingQuality)}`);
+  lines.push(`  ${isQuanFocused ? '{208-fg}▶{/208-fg}' : ' '} {250-fg}Množstvo / Porcia:{/250-fg} ${quanBtns}   ${starRender(lunchRatingQuantity)}`);
+  lines.push('');
+
+  if (isRatingFocused) {
+    lines.push(`  {208-bg}{black-fg}{bold} [ ENTER: ODOSLAŤ HODNOTENIE ] {/bold}{/black-fg}{/208-bg}   {244-fg}[1-5: Nastaviť hviezdičky │ Tab: Prepínať kvalitu/porciu]{/244-fg}`);
+  } else {
+    lines.push(`  {240-bg}{250-fg} [ ODOSLAŤ HODNOTENIE ] {/250-fg}{/240-bg}   {244-fg}(Zamerajte hodnotenie šípkou dole pre odoslanie){/244-fg}`);
+  }
+
+  lunchesMainBox.setContent(lines.join('\n'));
+}
+
+function renderLunchesCard() {
+  renderLunchesSidebar();
+  renderLunchesMain();
+}
+
+// ==============================================================================
+// IN-CLI POPUP MODALS: CONFIRM LUNCH & COMPOSE MESSAGE HANDLERS
+// ==============================================================================
+
+function openConfirmLunchModal(day, actionType) {
+  confirmModalPendingDay = day;
+  confirmModalPendingAction = actionType || 'signoff';
+  confirmModalExecuting = false;
+  confirmModalFeedback = null;
+  activeModal = 'confirm_lunch';
+  renderConfirmLunchModal();
+  confirmLunchModal.show();
+  confirmLunchModal.focus();
+  updateFooter();
+  screen.render();
+}
+
+function closeConfirmLunchModal() {
+  activeModal = null;
+  confirmModalPendingDay = null;
+  confirmModalFeedback = null;
+  confirmModalExecuting = false;
+  confirmLunchModal.hide();
+  updateFooter();
+  renderLunchesCard();
+  screen.render();
+}
+
+function renderConfirmLunchModal() {
+  const day = confirmModalPendingDay;
+  if (!day) return;
+
+  const isSignoff = confirmModalPendingAction === 'signoff';
+  const title = isSignoff ? '▲ POTVRDENIE ODHLÁSENIA OBEDA ▲' : '▲ POTVRDENIE PRIHLÁSENIA OBEDA ▲';
+  const actionWord = isSignoff ? 'odhlásiť' : 'prihlásiť';
+  const colTag = isSignoff ? '196' : '46';
+
+  const lines = [];
+  lines.push('');
+  lines.push(` {center}{bold}{${colTag}-fg}${title}{/${colTag}-fg}{/bold}{/center}`);
+  lines.push(' {67-fg}────────────────────────────────────────────────────────────{/67-fg}');
+  lines.push('');
+  lines.push(`  Naozaj si prajete {bold}{white-fg}${actionWord}{/white-fg}{/bold} obed na:`);
+  lines.push(`  {bold}{153-fg}${day.day_name} ${day.date_formatted}{/153-fg}{/bold}`);
+  lines.push('');
+  lines.push(`  {244-fg}Výdaj:{/244-fg} {white-fg}${day.serving}{/white-fg}`);
+  lines.push(`  {244-fg}Stav pred akciou:{/244-fg} {white-fg}${day.status}{/white-fg}`);
+  lines.push('');
+
+  if (confirmModalExecuting) {
+    lines.push('  {center}{yellow-fg}{bold}⏳ Prebieha komunikácia so serverom EduPage...{/bold}{/yellow-fg}{/center}');
+  } else if (confirmModalFeedback) {
+    lines.push(`  {center}${confirmModalFeedback}{/center}`);
+  } else {
+    const confirmBtn = isSignoff
+      ? '{white-fg}{196-bg}{bold} [ ENTER ] POTVRDIŤ ODHLÁSENIE {/bold}{/196-bg}{/white-fg}'
+      : '{black-fg}{46-bg}{bold} [ ENTER ] POTVRDIŤ PRIHLÁSENIE {/bold}{/46-bg}{/black-fg}';
+    lines.push(`  {center}${confirmBtn}     {244-fg}[ ESC / N ] ZRUŠIŤ{/244-fg}{/center}`);
+  }
+
+  confirmLunchModal.setContent(lines.join('\n'));
+}
+
+function executeConfirmLunchAction() {
+  if (!confirmModalPendingDay || confirmModalExecuting) return;
+  confirmModalExecuting = true;
+  confirmModalFeedback = null;
+  renderConfirmLunchModal();
+  screen.render();
+
+  const day = confirmModalPendingDay;
+  const isSignoff = confirmModalPendingAction === 'signoff';
+  const subcmd = isSignoff ? 'lunch-signoff' : 'lunch-order';
+  const args = isSignoff ? [subcmd, '--date', day.date] : [subcmd, '--date', day.date, '--menu', 'A'];
+
+  runPythonAction(args, (success, result) => {
+    confirmModalExecuting = false;
+    if (success && result && result.success) {
+      confirmModalFeedback = `{green-fg}{bold}✓ ${result.message || 'Akcia úspešná!'}{/bold}{/green-fg}`;
+      if (isSignoff) {
+        day.ordered_meal = null;
+        day.status = 'ODHLÁSENÉ / NEOBJEDNANÉ';
+      } else {
+        day.ordered_meal = 'A';
+        day.status = 'OBJEDNANÉ: Menu A';
+      }
+      lunchActionFeedback = confirmModalFeedback;
+      renderConfirmLunchModal();
+      screen.render();
+      setTimeout(() => {
+        closeConfirmLunchModal();
+      }, 1000);
+    } else {
+      const errMsg = (result && (result.error || result.message)) || 'Akcia zlyhala.';
+      confirmModalFeedback = `{red-fg}{bold}✗ ${errMsg}{/bold}{/red-fg}`;
+      renderConfirmLunchModal();
+      screen.render();
+    }
+  });
+}
+
+function executeSubmitRating() {
+  const days = getLunchesDays();
+  const day = days[lunchDayCursor] || days[0];
+  if (!day || !day.has_meal) return;
+
+  lunchActionFeedback = '{yellow-fg}⏳ Odosielam hodnotenie jedla...{/yellow-fg}';
+  renderLunchesCard();
+  screen.render();
+
+  const args = [
+    'lunch-rate',
+    '--date', day.date,
+    '--quality', String(lunchRatingQuality),
+    '--quantity', String(lunchRatingQuantity),
+  ];
+
+  runPythonAction(args, (success, result) => {
+    if (success && result && result.success) {
+      lunchActionFeedback = `{green-fg}{bold}✓ ${result.message || 'Hodnotenie úspešne odoslané!'}{/bold}{/green-fg}`;
+    } else {
+      const err = (result && (result.error || result.message)) || 'Nepodarilo sa odoslať hodnotenie.';
+      lunchActionFeedback = `{red-fg}{bold}✗ ${err}{/bold}{/red-fg}`;
+    }
+    renderLunchesCard();
+    screen.render();
+    if (lunchActionTimer) clearTimeout(lunchActionTimer);
+    lunchActionTimer = setTimeout(() => {
+      lunchActionFeedback = null;
+      renderLunchesCard();
+      screen.render();
+    }, 4000);
+  });
+}
+
+function getFilteredTeachers() {
+  const all = dashboardData.teachers_directory || [];
+  const q = composeSearchQuery.trim().toLowerCase();
+  if (!q) return all.slice(0, 8);
+  return all.filter((t) => {
+    return (t.name || '').toLowerCase().includes(q) || (t.classroom || '').toLowerCase().includes(q);
+  }).slice(0, 8);
+}
+
+function openComposeMessageModal() {
+  activeModal = 'compose_message';
+  composeStep = 'recipient';
+  composeSearchQuery = '';
+  composeTeacherCursor = 0;
+  composeSelectedTeacher = null;
+  composeBody = '';
+  composeFeedback = null;
+  composeExecuting = false;
+  renderComposeModal();
+  composeModal.show();
+  composeModal.focus();
+  updateFooter();
+  screen.render();
+}
+
+function closeComposeModal() {
+  activeModal = null;
+  composeModal.hide();
+  updateFooter();
+  if (activeTabIndex === 3) {
+    renderMessagesCard();
+  }
+  screen.render();
+}
+
+function renderComposeModal() {
+  const lines = [];
+  lines.push('');
+  lines.push(' {bold}{153-fg}✉ POSLAŤ SPRÁVU UČITEĽOVI{/153-fg}{/bold}');
+  lines.push(' {67-fg}────────────────────────────────────────────────────────────────────────{/67-fg}');
+  lines.push('');
+
+  if (composeStep === 'recipient') {
+    lines.push(` {208-fg}{bold}1. Komu (hľadať učiteľa):{/bold}{/208-fg} [ {white-fg}${composeSearchQuery}{/white-fg}{208-fg}█{/208-fg} ]`);
+    lines.push('');
+    lines.push(' {110-fg}NAŠEPKÁVAČ UČITEĽOV (použite šípky ↑ / ↓ a Enter):{/110-fg}');
+
+    const teachers = getFilteredTeachers();
+    if (teachers.length === 0) {
+      lines.push('   {244-fg}Žiaden učiteľ nevyhovuje hľadaniu.{/244-fg}');
+    } else {
+      if (composeTeacherCursor >= teachers.length) composeTeacherCursor = teachers.length - 1;
+      teachers.forEach((t, idx) => {
+        const isHere = idx === composeTeacherCursor;
+        const nameCol = fitPlain(t.name, 36).padEnd(36, ' ');
+        const roomCol = fitPlain(`Kabinet: ${t.classroom || '-'}`, 24);
+        const rawRow = ` ${isHere ? '▸' : ' '} ${nameCol} │ ${roomCol}`;
+        if (isHere) {
+          lines.push(`{208-bg}{black-fg}{bold}${padRawLine(rawRow, 70)}{/bold}{/black-fg}{/208-bg}`);
+        } else {
+          lines.push(`{250-fg}${rawRow}{/250-fg}`);
+        }
+      });
+    }
+
+    lines.push('');
+    lines.push(' {67-fg}────────────────────────────────────────────────────────────────────────{/67-fg}');
+    lines.push(' {153-fg}[Enter]{/153-fg} Vybrať označeného učiteľa   │   {153-fg}[Esc]{/153-fg} Zrušiť');
+  } else {
+    const tName = composeSelectedTeacher ? composeSelectedTeacher.name : 'Neznámy';
+    const tRoom = composeSelectedTeacher ? composeSelectedTeacher.classroom : '-';
+    lines.push(` {244-fg}Príjemca:{/244-fg} {green-fg}{bold}✓ ${tName}{/bold}{/green-fg} {244-fg}(Kabinet: ${tRoom}){/244-fg}   {110-fg}[Tab: zmeniť príjemcu]{/110-fg}`);
+    lines.push('');
+    lines.push(' {208-fg}{bold}2. Text správy:{/bold}{/208-fg}');
+    lines.push(' {67-fg}┌──────────────────────────────────────────────────────────────────────┐{/67-fg}');
+
+    const bodyDisplay = composeBody || '';
+    const bodyLines = wrapTextToLines(bodyDisplay + '█', 68);
+    for (let i = 0; i < Math.max(4, bodyLines.length); i++) {
+      const lineText = fitPlain(bodyLines[i] || '', 68).padEnd(68, ' ');
+      lines.push(` {67-fg}│{/67-fg} {white-fg}${lineText}{/white-fg} {67-fg}│{/67-fg}`);
+    }
+    lines.push(' {67-fg}└──────────────────────────────────────────────────────────────────────┘{/67-fg}');
+    lines.push('');
+
+    if (composeExecuting) {
+      lines.push(' {yellow-fg}{bold}⏳ Odosielam správu učiteľovi...{/bold}{/yellow-fg}');
+    } else if (composeFeedback) {
+      lines.push(` ${composeFeedback}`);
+    } else {
+      lines.push(' {white-fg}{117-bg}{bold} [ ENTER / Ctrl+S ] ODOSLAŤ SPRÁVU {/bold}{/117-bg}{/white-fg}   {244-fg}[Esc: Zrušiť │ Tab: Zmeniť učiteľa]{/244-fg}');
+    }
+  }
+
+  composeModal.setContent(lines.join('\n'));
+}
+
+function executeSendMessage() {
+  if (!composeSelectedTeacher || composeExecuting) return;
+  if (!composeBody.trim()) {
+    composeFeedback = '{red-fg}Zadajte text správy pred odoslaním.{/red-fg}';
+    renderComposeModal();
+    screen.render();
+    return;
+  }
+
+  composeExecuting = true;
+  composeFeedback = null;
+  renderComposeModal();
+  screen.render();
+
+  const args = [
+    'send-message',
+    '--recipient', composeSelectedTeacher.id,
+    '--body', composeBody.trim(),
+  ];
+
+  runPythonAction(args, (success, result) => {
+    composeExecuting = false;
+    if (success && result && result.success) {
+      composeFeedback = `{green-fg}{bold}✓ ${result.message || 'Správa bola úspešne odoslaná!'}{/bold}{/green-fg}`;
+      renderComposeModal();
+      screen.render();
+      setTimeout(() => {
+        closeComposeModal();
+        fetchEdupageData();
+      }, 1200);
+    } else {
+      const err = (result && (result.error || result.message)) || 'Odoslanie správy zlyhalo.';
+      composeFeedback = `{red-fg}{bold}✗ ${err}{/bold}{/red-fg}`;
+      renderComposeModal();
+      screen.render();
+    }
+  });
+}
+
+function handleModalKeypress(ch, key) {
+  if (!activeModal || !key) return;
+
+  if (activeModal === 'confirm_lunch') {
+    if (key.name === 'escape' || key.name === 'n' || key.name === 'q') {
+      closeConfirmLunchModal();
+      return;
+    }
+    if (key.name === 'enter' || key.name === 'return' || key.name === 'y') {
+      executeConfirmLunchAction();
+      return;
+    }
+    return;
+  }
+
+  if (activeModal === 'compose_message') {
+    if (key.name === 'escape') {
+      closeComposeModal();
+      return;
+    }
+
+    if (composeStep === 'recipient') {
+      const teachers = getFilteredTeachers();
+      if (key.name === 'up' || (key.name === 'k' && key.ctrl)) {
+        if (composeTeacherCursor > 0) composeTeacherCursor -= 1;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (key.name === 'down' || (key.name === 'j' && key.ctrl)) {
+        if (composeTeacherCursor < teachers.length - 1) composeTeacherCursor += 1;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (key.name === 'enter' || key.name === 'return') {
+        if (teachers[composeTeacherCursor]) {
+          composeSelectedTeacher = teachers[composeTeacherCursor];
+          composeStep = 'body';
+          renderComposeModal();
+          screen.render();
+        }
+        return;
+      }
+      if (key.name === 'backspace') {
+        composeSearchQuery = composeSearchQuery.slice(0, -1);
+        composeTeacherCursor = 0;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (key.name === 'delete' || (key.ctrl && key.name === 'u')) {
+        composeSearchQuery = '';
+        composeTeacherCursor = 0;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (['tab'].includes(key.name)) {
+        if (composeSelectedTeacher) {
+          composeStep = 'body';
+          renderComposeModal();
+          screen.render();
+        }
+        return;
+      }
+      if (ch && !key.ctrl && !key.meta && ch.length === 1 && ch.charCodeAt(0) >= 32) {
+        composeSearchQuery += ch;
+        composeTeacherCursor = 0;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+    } else if (composeStep === 'body') {
+      if (key.name === 'tab') {
+        composeStep = 'recipient';
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if ((key.ctrl && key.name === 's') || key.name === 'enter' || key.name === 'return') {
+        executeSendMessage();
+        return;
+      }
+      if (key.name === 'backspace') {
+        composeBody = composeBody.slice(0, -1);
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (key.name === 'delete' || (key.ctrl && key.name === 'u')) {
+        composeBody = '';
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+      if (ch && !key.ctrl && !key.meta && ch.length === 1 && ch.charCodeAt(0) >= 32) {
+        composeBody += ch;
+        renderComposeModal();
+        screen.render();
+        return;
+      }
+    }
+  }
 }
 
 // ==============================================================================
@@ -2378,6 +3188,11 @@ function isMessagesSearchActive() {
 
 // Handle typing inside the Tab 4 Search Box
 screen.on('keypress', (ch, key) => {
+  if (activeModal) {
+    handleModalKeypress(ch, key);
+    return;
+  }
+
   if (!isMessagesSearchActive() || !key) return;
 
   if (key.name === 'backspace') {
@@ -2412,33 +3227,44 @@ screen.on('keypress', (ch, key) => {
   }
 });
 
-// Direct Number Tab Switching [1 - 5] (ignored when typing into search box)
-screen.key(['1'], () => {
-  if (!isMessagesSearchActive()) switchTab(0);
-});
-screen.key(['2'], () => {
-  if (!isMessagesSearchActive()) switchTab(1);
-});
-screen.key(['3'], () => {
-  if (!isMessagesSearchActive()) switchTab(2);
-});
-screen.key(['4'], () => {
-  if (!isMessagesSearchActive()) switchTab(3);
-});
-screen.key(['5'], () => {
-  if (!isMessagesSearchActive()) switchTab(4);
+// Direct Number Tab Switching [1 - 5] or Rating Star Selection on Tab 5
+screen.key(['1', '2', '3', '4', '5'], (ch, key) => {
+  if (activeModal) return;
+  if (isMessagesSearchActive()) return;
+
+  if (activeTabIndex === 4 && navFocus === 'card' && lunchSubFocus === 'rating') {
+    const val = parseInt(key.name, 10);
+    if (val >= 1 && val <= 5) {
+      if (lunchRatingField === 'quality') {
+        lunchRatingQuality = val;
+      } else {
+        lunchRatingQuantity = val;
+      }
+      renderLunchesCard();
+      screen.render();
+      return;
+    }
+  }
+
+  const tabIdx = parseInt(key.name, 10) - 1;
+  if (tabIdx >= 0 && tabIdx < TABS.length) {
+    switchTab(tabIdx);
+  }
 });
 
 // Bracket Tab Switching always available when not typing in search box
 screen.key(['['], () => {
-  if (!isMessagesSearchActive()) switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
+  if (activeModal || isMessagesSearchActive()) return;
+  switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
 });
 screen.key([']'], () => {
-  if (!isMessagesSearchActive()) switchTab((activeTabIndex + 1) % TABS.length);
+  if (activeModal || isMessagesSearchActive()) return;
+  switchTab((activeTabIndex + 1) % TABS.length);
 });
 
 // Quick Search Activation on Tab 4 with '/' or 'f'
 screen.key(['/', 'f'], () => {
+  if (activeModal) return;
   if (activeTabIndex === 3 && !isMessagesSearchActive()) {
     navFocus = 'card';
     msgSubFocus = 'search';
@@ -2449,12 +3275,17 @@ screen.key(['/', 'f'], () => {
   }
 });
 
+// Compose Message Shortcut on Tab 4 with 'm' or 'c'
+screen.key(['m', 'c'], () => {
+  if (activeModal || isMessagesSearchActive()) return;
+  if (activeTabIndex === 3) {
+    openComposeMessageModal();
+  }
+});
+
 // Left / Right Arrows: Switch Tabs when on Topbar; operate inside Card when in Sidebar/Feed
 screen.key(['left', 'h'], (_, key) => {
-  if (isMessagesSearchActive()) return;
-  if (key && key.name === 'h' && activeTabIndex === 3 && navFocus === 'card') {
-    // Allow 'h' or 'left' to switch from Feed to Left Checkboxes
-  }
+  if (activeModal || isMessagesSearchActive()) return;
   if (activeTabIndex === 1 && navFocus === 'card') {
     applySidebarItem(sidebarCursor, true);
     renderTimetableCard();
@@ -2467,13 +3298,18 @@ screen.key(['left', 'h'], (_, key) => {
     updateFooter();
     renderMessagesCard();
     screen.render();
+  } else if (activeTabIndex === 4 && navFocus === 'card') {
+    lunchSubFocus = 'sidebar';
+    updateFooter();
+    renderLunchesCard();
+    screen.render();
   } else {
     switchTab((activeTabIndex - 1 + TABS.length) % TABS.length);
   }
 });
 
 screen.key(['right', 'l'], () => {
-  if (isMessagesSearchActive()) return;
+  if (activeModal || isMessagesSearchActive()) return;
   if (activeTabIndex === 1 && navFocus === 'card') {
     applySidebarItem(sidebarCursor, true);
     renderTimetableCard();
@@ -2486,6 +3322,13 @@ screen.key(['right', 'l'], () => {
     updateFooter();
     renderMessagesCard();
     screen.render();
+  } else if (activeTabIndex === 4 && navFocus === 'card') {
+    if (lunchSubFocus === 'sidebar') {
+      lunchSubFocus = 'button';
+      updateFooter();
+      renderLunchesCard();
+      screen.render();
+    }
   } else {
     switchTab((activeTabIndex + 1) % TABS.length);
   }
@@ -2493,6 +3336,7 @@ screen.key(['right', 'l'], () => {
 
 // PageUp / PageDown for fast scrolling through earlier notifications
 screen.key(['pageup'], () => {
+  if (activeModal) return;
   if (activeTabIndex === 3) {
     if (typeof messagesFeedBox.scroll === 'function') messagesFeedBox.scroll(-12);
     renderMessagesCard();
@@ -2504,6 +3348,7 @@ screen.key(['pageup'], () => {
 });
 
 screen.key(['pagedown'], () => {
+  if (activeModal) return;
   if (activeTabIndex === 3) {
     if (typeof messagesFeedBox.scroll === 'function') messagesFeedBox.scroll(12);
     renderMessagesCard();
@@ -2516,6 +3361,7 @@ screen.key(['pagedown'], () => {
 
 // Down Arrow: Enter Card from Topbar, move cursor down inside Sidebar, or scroll notifications feed
 screen.key(['down', 'j'], (_, key) => {
+  if (activeModal) return;
   if (isMessagesSearchActive() && key && key.name === 'j') return;
 
   if (activeTabIndex === 0) {
@@ -2556,7 +3402,7 @@ screen.key(['down', 'j'], (_, key) => {
       screen.render();
     }
   } else if (activeTabIndex === 3) {
-    const maxFilterIdx = MESSAGE_CATEGORIES.length + 1;
+    const maxFilterIdx = MESSAGE_CATEGORIES.length + 2;
     if (navFocus === 'topbar') {
       navFocus = 'card';
       msgSubFocus = 'feed';
@@ -2581,11 +3427,40 @@ screen.key(['down', 'j'], (_, key) => {
       }
       screen.render();
     }
+  } else if (activeTabIndex === 4) {
+    const days = getLunchesDays();
+    if (navFocus === 'topbar') {
+      navFocus = 'card';
+      lunchSubFocus = 'sidebar';
+      updateHeader();
+      updateFooter();
+      renderLunchesCard();
+      screen.render();
+    } else if (lunchSubFocus === 'sidebar') {
+      if (lunchDayCursor < days.length - 1) {
+        lunchDayCursor += 1;
+        renderLunchesCard();
+        screen.render();
+      }
+    } else if (lunchSubFocus === 'button') {
+      lunchSubFocus = 'rating';
+      lunchRatingField = 'quality';
+      updateFooter();
+      renderLunchesCard();
+      screen.render();
+    } else if (lunchSubFocus === 'rating') {
+      if (lunchRatingField === 'quality') {
+        lunchRatingField = 'quantity';
+        renderLunchesCard();
+        screen.render();
+      }
+    }
   }
 });
 
 // Up Arrow: Move cursor up inside Card Sidebar/Feed; exit back to Topbar from top item
 screen.key(['up', 'k'], (_, key) => {
+  if (activeModal) return;
   if (isMessagesSearchActive() && key && key.name === 'k') return;
 
   if (activeTabIndex === 0 && navFocus === 'card') {
@@ -2657,11 +3532,43 @@ screen.key(['up', 'k'], (_, key) => {
         screen.render();
       }
     }
+  } else if (activeTabIndex === 4 && navFocus === 'card') {
+    if (lunchSubFocus === 'rating') {
+      if (lunchRatingField === 'quantity') {
+        lunchRatingField = 'quality';
+        renderLunchesCard();
+        screen.render();
+      } else {
+        lunchSubFocus = 'button';
+        updateFooter();
+        renderLunchesCard();
+        screen.render();
+      }
+    } else if (lunchSubFocus === 'button') {
+      navFocus = 'topbar';
+      updateHeader();
+      updateFooter();
+      renderLunchesCard();
+      screen.render();
+    } else if (lunchSubFocus === 'sidebar') {
+      if (lunchDayCursor > 0) {
+        lunchDayCursor -= 1;
+        renderLunchesCard();
+        screen.render();
+      } else {
+        navFocus = 'topbar';
+        updateHeader();
+        updateFooter();
+        renderLunchesCard();
+        screen.render();
+      }
+    }
   }
 });
 
 // Enter / Space: Activate or toggle checkbox inside Sidebar
 screen.key(['enter', 'space'], (_, key) => {
+  if (activeModal) return;
   if (isMessagesSearchActive()) {
     if (key && (key.name === 'enter' || key.name === 'return')) {
       msgSubFocus = 'feed';
@@ -2685,11 +3592,23 @@ screen.key(['enter', 'space'], (_, key) => {
       renderMessagesCard();
       screen.render();
     }
+  } else if (activeTabIndex === 4 && navFocus === 'card') {
+    if (lunchSubFocus === 'button') {
+      const days = getLunchesDays();
+      const day = days[lunchDayCursor] || days[0];
+      if (day && day.has_meal) {
+        const actionType = day.ordered_meal ? 'signoff' : 'order';
+        openConfirmLunchModal(day, actionType);
+      }
+    } else if (lunchSubFocus === 'rating') {
+      executeSubmitRating();
+    }
   }
 });
 
 // Tab / Shift-Tab widget focus cycling inside Monitor tab or Tab 4 sub-areas
 screen.key(['tab'], () => {
+  if (activeModal) return;
   if (activeTabIndex === 3) {
     navFocus = 'card';
     const order = ['feed', 'filters', 'search'];
@@ -2698,6 +3617,26 @@ screen.key(['tab'], () => {
     updateHeader();
     updateFooter();
     renderMessagesCard();
+    screen.render();
+    return;
+  }
+  if (activeTabIndex === 4) {
+    navFocus = 'card';
+    if (lunchSubFocus === 'sidebar') {
+      lunchSubFocus = 'button';
+    } else if (lunchSubFocus === 'button') {
+      lunchSubFocus = 'rating';
+      lunchRatingField = 'quality';
+    } else if (lunchSubFocus === 'rating') {
+      if (lunchRatingField === 'quality') {
+        lunchRatingField = 'quantity';
+      } else {
+        lunchRatingField = 'quality';
+        lunchSubFocus = 'sidebar';
+      }
+    }
+    updateFooter();
+    renderLunchesCard();
     screen.render();
     return;
   }
@@ -2713,6 +3652,7 @@ screen.key(['tab'], () => {
 });
 
 screen.key(['S-tab'], () => {
+  if (activeModal) return;
   if (activeTabIndex === 3) {
     navFocus = 'card';
     const order = ['feed', 'filters', 'search'];
@@ -2721,6 +3661,25 @@ screen.key(['S-tab'], () => {
     updateHeader();
     updateFooter();
     renderMessagesCard();
+    screen.render();
+    return;
+  }
+  if (activeTabIndex === 4) {
+    navFocus = 'card';
+    if (lunchSubFocus === 'rating') {
+      if (lunchRatingField === 'quantity') {
+        lunchRatingField = 'quality';
+      } else {
+        lunchSubFocus = 'button';
+      }
+    } else if (lunchSubFocus === 'button') {
+      lunchSubFocus = 'sidebar';
+    } else if (lunchSubFocus === 'sidebar') {
+      lunchSubFocus = 'rating';
+      lunchRatingField = 'quantity';
+    }
+    updateFooter();
+    renderLunchesCard();
     screen.render();
     return;
   }
@@ -2735,13 +3694,19 @@ screen.key(['S-tab'], () => {
   }
 });
 
-// Refresh (ignored when typing into search box)
+// Refresh (ignored when typing into search box or modals)
 screen.key(['r'], () => {
+  if (activeModal) return;
   if (!isMessagesSearchActive()) fetchEdupageData();
 });
 
-// Quit (Esc exits search input first if search input is active)
+// Quit (Esc exits modal, or search input first, then exits)
 screen.key(['escape'], () => {
+  if (activeModal) {
+    if (activeModal === 'confirm_lunch') closeConfirmLunchModal();
+    else if (activeModal === 'compose_message') closeComposeModal();
+    return;
+  }
   if (isMessagesSearchActive()) {
     msgSubFocus = 'feed';
     updateFooter();
@@ -2753,6 +3718,7 @@ screen.key(['escape'], () => {
 });
 
 screen.key(['q'], () => {
+  if (activeModal) return;
   if (!isMessagesSearchActive()) {
     process.exit(0);
   }
