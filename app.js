@@ -142,6 +142,7 @@ let composeBody = '';
 let composeFeedback = null;
 let composeExecuting = false;
 let lastModalClosedAt = 0; // Debounce guard to prevent race condition when closing modals with Esc
+let lastModalEnterAt = 0;  // Debounce guard to prevent duplicate enter/return events on Windows
 
 let dashboardData = loadLocalCacheIfExists() || getInitialState();
 let isFetching = false;
@@ -3100,7 +3101,7 @@ function renderComposeModal() {
     if (composeFeedback) {
       lines.push(` ${composeFeedback}`);
     } else {
-      lines.push(' {153-fg}[Enter]{/153-fg} Pridať/Odobrať   │   {153-fg}[Tab]{/153-fg} Text správy   │   {153-fg}[Esc]{/153-fg} Zrušiť');
+      lines.push(' {153-fg}[Enter / Medzerník]{/153-fg} Pridať/Odobrať   │   {153-fg}[Backspace]{/153-fg} Zmazať tag   │   {153-fg}[Tab]{/153-fg} Text správy   │   {153-fg}[Esc]{/153-fg} Zrušiť');
     }
   } else {
     // Step: Body
@@ -3176,12 +3177,20 @@ function executeSendMessage() {
 function handleModalKeypress(ch, key) {
   if (!activeModal || !key) return;
 
+  const isEnterKey = key.name === 'enter' || key.name === 'return' || ch === '\r' || ch === '\n';
+  if (isEnterKey) {
+    if (Date.now() - lastModalEnterAt < 220) {
+      return;
+    }
+    lastModalEnterAt = Date.now();
+  }
+
   if (activeModal === 'confirm_lunch') {
     if (key.name === 'escape' || key.name === 'n' || key.name === 'q') {
       closeConfirmLunchModal();
       return;
     }
-    if (key.name === 'enter' || key.name === 'return' || key.name === 'y') {
+    if (isEnterKey || key.name === 'y') {
       executeConfirmLunchAction();
       return;
     }
@@ -3208,18 +3217,19 @@ function handleModalKeypress(ch, key) {
         screen.render();
         return;
       }
-      if (key.name === 'enter' || key.name === 'return') {
+      if (isEnterKey || (key.name === 'space' && composeSearchQuery.length === 0)) {
         if (recs[composeRecipientCursor]) {
           const target = recs[composeRecipientCursor];
           const existIdx = composeSelectedRecipients.findIndex((x) => x.id === target.id);
           if (existIdx >= 0) {
             composeSelectedRecipients.splice(existIdx, 1);
+            composeFeedback = `{yellow-fg}Odobraný príjemca: ${target.name}{/yellow-fg}`;
           } else {
             composeSelectedRecipients.push(target);
+            composeFeedback = `{green-fg}Pridaný príjemca: ${target.name}{/green-fg}`;
           }
           composeSearchQuery = '';
           composeRecipientCursor = 0;
-          composeFeedback = null;
           renderComposeModal();
           screen.render();
         }
@@ -3241,7 +3251,8 @@ function handleModalKeypress(ch, key) {
           composeSearchQuery = composeSearchQuery.slice(0, -1);
           composeRecipientCursor = 0;
         } else if (composeSelectedRecipients.length > 0) {
-          composeSelectedRecipients.pop();
+          const popped = composeSelectedRecipients.pop();
+          composeFeedback = `{yellow-fg}Odobraný príjemca: ${popped.name}{/yellow-fg}`;
         }
         renderComposeModal();
         screen.render();
@@ -3252,6 +3263,7 @@ function handleModalKeypress(ch, key) {
           composeSearchQuery = '';
         } else {
           composeSelectedRecipients = [];
+          composeFeedback = '{yellow-fg}Zoznam príjemcov bol vyprázdnený.{/yellow-fg}';
         }
         composeRecipientCursor = 0;
         renderComposeModal();
@@ -3272,7 +3284,7 @@ function handleModalKeypress(ch, key) {
         screen.render();
         return;
       }
-      if ((key.ctrl && key.name === 's') || key.name === 'enter' || key.name === 'return') {
+      if ((key.ctrl && key.name === 's') || isEnterKey) {
         executeSendMessage();
         return;
       }
